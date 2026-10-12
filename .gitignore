@@ -1,0 +1,69 @@
+.vscode/*
+build/*
+**/.vs
+**/Debug/*
+**/x64/*
+**/*.pid
+**/*.log
+**/*.o
+**/*.elf
+**/*.vcxproj.filters
+**/archives/*
+*.sdf
+*.suo
+**/PS3_Debug/*
+**/PS3_Release/*
+PS3_Debug/*
+PS3_Release/*
+bin/*
+bin-int/*
+*.opensdf
+.vs/*
+
+# Scratch drop-folder for key sets. vendor/scetool/bin/data/keys is already
+# tracked and already correct - see vendor/scetool/SIGNING.md. Don't commit
+# stray copies of Sony key material.
+here_are_keys/
+
+# Vendored toolchains and Sony SDK binaries. Large, and re-obtainable - do not
+# carry them in the repository.
+#
+#   vendor/PSL1GHT     17M  PSL1GHT compiler/runtime sources. The installer build
+#                           does NOT need this tree: it uses /usr/local/ps3dev
+#                           from the ps3dev Docker image instead.
+#   vendor/scetool     232K  signing tool, and its key set.
+#   vendor/securetool  1.6M  Sony signing binaries.
+#
+# NOTE: vendor/VirtualShell, vendor/sysutil and vendor/makepkg stay tracked -
+# the plugin links against VirtualShell, and they are small.
+#
+# A fresh clone therefore cannot build the plugin until these are restored. See
+# README.md for how.
+vendor/PSL1GHT/
+vendor/scetool/
+vendor/securetool/
+
+# PSL1GHT build output. The existing "build/*" rule is not anchored, so it does
+# not cover installer_src/build/.
+installer_src/build/
+
+# ppu_rules drops its artifacts next to the sources rather than under build/.
+installer_src/*.elf
+installer_src/*.elf.map
+installer_src/*.self
+installer_src/*.fake.self
+installer_src/*.pkg
+installer_src/*.gnpdrm.pkg
+
+__pycache__/
+*.pyc
+
+# vendor/makepkg/*.exe - Windows PKG builders. Nothing here uses them: the
+# installer PKG is produced by packaging/make-pkg.py, and makepkg1.exe was the
+# NPDRM-only path that rejected our homebrew EBOOT outright.
+vendor/makepkg/makepkg1.exe
+vendor/makepkg/makepkg2.exe
+
+# Per-machine Visual Studio settings. Points at absolute SDK paths that only
+# exist on the machine that generated it, so it is noise in the repository.
+*.vcxproj.user

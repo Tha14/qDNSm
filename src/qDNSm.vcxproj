@@ -1,0 +1,219 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|PS3">
+      <Configuration>Debug</Configuration>
+      <Platform>PS3</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|PS3">
+      <Configuration>Release</Configuration>
+      <Platform>PS3</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCTargetsPath Condition="'$(VCTargetsPath12)' != '' and '$(VSVersion)' == '' and '$(VisualStudioVersion)' == ''">$(VCTargetsPath12)</VCTargetsPath>
+    <ProjectGuid>{8ED34C4B-32EB-4392-8ADB-8B2CC3B866B1}</ProjectGuid>
+    <ProjectName>qDNSm</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|PS3'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>SNC</PlatformToolset>
+    <NoTocRestore>NoTocRestore1</NoTocRestore>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|PS3'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>SNC</PlatformToolset>
+    <NoTocRestore>NoTocRestore1</NoTocRestore>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup Condition="'$(DebuggerFlavor)'=='PS3Debugger'" Label="OverrideDebuggerDefaults">
+    <!--LocalDebuggerCommand>$(TargetPath)</LocalDebuggerCommand-->
+    <!--LocalDebuggerCommandArguments></LocalDebuggerCommandArguments-->
+    <!--LocalDebuggerCommandLine>-r -e -m</LocalDebuggerCommandLine-->
+    <!--LocalRunCommandLine>-r</LocalRunCommandLine-->
+    <!--LocalTunerCommandLine></LocalTunerCommandLine-->
+    <!--LocalDebuggerFileServingDirectory>$(ProjectDir)</LocalDebuggerFileServingDirectory-->
+    <!--LocalDebuggerHomeDirectory>$(ProjectDir)</LocalDebuggerHomeDirectory-->
+    <!--LocalDebuggerProjectFile></LocalDebuggerProjectFile-->
+    <!--LocalDebuggerResetType>Soft</LocalDebuggerResetType-->
+    <!--LocalDebuggerClearTty>False</LocalDebuggerClearTty-->
+  </PropertyGroup>
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|PS3'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|PS3'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|PS3'">
+    <OutDir>$(SolutionDir)bin\$(Configuration)-$(Platform)\</OutDir>
+    <IntDir>$(SolutionDir)bin-int\$(Configuration)-$(Platform)\$(ProjectName)\</IntDir>
+    <IgnoreImportLibrary>true</IgnoreImportLibrary>
+    <TargetExt>.prx</TargetExt>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|PS3'">
+    <OutDir>$(SolutionDir)bin\$(Configuration)-$(Platform)\</OutDir>
+    <IntDir>$(SolutionDir)bin-int\$(Configuration)-$(Platform)\$(ProjectName)\</IntDir>
+    <IgnoreImportLibrary>true</IgnoreImportLibrary>
+    <TargetExt>.prx</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|PS3'">
+    <ClCompile>
+      <PreprocessorDefinitions>LAUNCHER_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalIncludeDirectories>$(SN_PS3_PATH)\ppu\include\sn;$(SCE_PS3_ROOT)\target\ppu\include;$(SCE_PS3_ROOT)\target\common\include;$(SolutionDir)vendor\VirtualShell\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <CppLanguageStd>Cpp11</CppLanguageStd>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>
+        <!-- ecrti.o provides __fini and is a bare .o outside any .a. Do NOT add crt1.o: it carries a .sys_proc_prx_param section that ps3ppuld cannot place under -oformat=prx, which breaks prx-fixup. _exit and __exit_user_prx_modules come from Core/CrtStubs.c instead. -->$(SCE_PS3_ROOT)\host-win32\ppu\lib\gcc\ppu-lv2\4.1.1\ecrti.o;-lsysutil_np_stub;-lnet_stub;-lnetctl_stub;$(SCE_PS3_ROOT)\target\ppu\lib\libc.a;$(SN_PS3_PATH)\ppu\lib\sn\libsn.a;$(SCE_PS3_ROOT)\target\ppu\lib\libm.a;$(SCE_PS3_ROOT)\target\ppu\lib\libio_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\liblv2_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libc_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libsysutil_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libsyscall.a;$(SCE_PS3_ROOT)\target\ppu\lib\hash\libsha256.a;-lvshtask_export_stub;-lpaf_export_stub;-lvshmain_export_stub;-lvshcommon_export_stub;-lstdc_export_stub;-lallocator_export_stub;-lsys_net_export_stub;-lxsetting_export_stub;-lnetctl_main_export_stub;-lsysPrxForUser_export_stub;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <Link>
+      <GenerateSnMapFile>FullMapFile</GenerateSnMapFile>
+      <AdditionalLibraryDirectories>$(SolutionDir)vendor\VirtualShell\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <OutputFormat>PRXFile</OutputFormat>
+    </Link>
+    <PostBuildEvent>
+      <Command>cd "$(SolutionDir)vendor\scetool\bin\"
+scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 APP -6 0003004000000000 -A 0001000000000000 --self-ctrl-flags 4000000000000000000000000000000000000000000000000000000000000002 -e "$(TargetDir)$(TargetName)$(TargetExt)" "$(TargetDir)$(TargetName).sprx" 2&gt;&amp;1</Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>Sign PRX (scetool)</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|PS3'">
+    <ClCompile>
+      <PreprocessorDefinitions>LAUNCHER_RELEASE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <OptimizationLevel>Level2</OptimizationLevel>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalIncludeDirectories>$(SN_PS3_PATH)\ppu\include\sn;$(SCE_PS3_ROOT)\target\ppu\include;$(SCE_PS3_ROOT)\target\common\include;$(SolutionDir)vendor\VirtualShell\include;$(SolutionDir)vendor\sysutil;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <CppLanguageStd>Cpp11</CppLanguageStd>
+      <Branchless>Branchless2</Branchless>
+      <!-- Size trims, Release only.
+
+           GOTCHA, learned the hard way: MSBuild passes BOTH ClCompile/AdditionalOptions and
+           Link/AdditionalOptions through verbatim. It does NOT split them on semicolons, so a
+           trailing ';' becomes part of the last option: "-Os;%(AdditionalOptions)" reaches
+           ps3ppusnc as "-Os;" and fails with "Command line error : Unrecognized option '-Os;'".
+           That is also why an earlier round of flags looked "rejected" when they were merely
+           carrying a semicolon. Separate options with spaces, never semicolons.
+
+           The toolchain is ppu-lv2-gcc-4.1.1, which predates LTO (GCC 4.5), so cross-module
+           dead stripping happens at link time instead - see the Link section below.
+
+           -Os overrides the -O2 from OptimizationLevel=Level2, because GCC honours the last
+           -O flag. -fno-exceptions and -fno-rtti are safe: there is no throw, catch,
+           dynamic_cast or typeid anywhere in the sources. Neither is -O-prefixed, so if this
+           toolchain does not support one it degrades to a warning rather than breaking the
+           build the way a malformed -Os does. They are kept in the hope they apply; if the
+           build prints "Unrecognized option" for either, drop it.
+
+           -fdata-sections is deliberately absent: cc1plus carries that name only as the error
+           text "not supported for this target", so there is no data-section splitting here and
+           dead stripping can only discard unreferenced functions. -->
+      <AdditionalOptions>-Os %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>
+        <!-- ecrti.o provides __fini and is a bare .o outside any .a. Do NOT add crt1.o: it carries a .sys_proc_prx_param section that ps3ppuld cannot place under -oformat=prx, which breaks prx-fixup. _exit and __exit_user_prx_modules come from Core/CrtStubs.c instead. -->$(SCE_PS3_ROOT)\host-win32\ppu\lib\gcc\ppu-lv2\4.1.1\ecrti.o;-lsysutil_np_stub;-lnet_stub;-lnetctl_stub;$(SCE_PS3_ROOT)\target\ppu\lib\libc.a;$(SN_PS3_PATH)\ppu\lib\sn\libsn.a;$(SCE_PS3_ROOT)\target\ppu\lib\libm.a;$(SCE_PS3_ROOT)\target\ppu\lib\libio_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\liblv2_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libc_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libsysutil_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libsyscall.a;$(SCE_PS3_ROOT)\target\ppu\lib\hash\libsha256.a;-lvshtask_export_stub;-lpaf_export_stub;-lvshmain_export_stub;-lvshcommon_export_stub;-lstdc_export_stub;-lallocator_export_stub;-lsys_net_export_stub;-lxsetting_export_stub;-lnetctl_main_export_stub;-lsysPrxForUser_export_stub;%(AdditionalDependencies)</AdditionalDependencies>
+      <!-- Dead-code stripping. ps3ppuld accepts gc-sections but warns L0153 that it is
+           deprecated in favour of strip-unused-data, so use the current name directly and
+           save the warning.
+           NOTE: MSBuild splits ClCompile/AdditionalOptions on semicolons but passes
+           Link/AdditionalOptions through verbatim, so a semicolon here reaches ld as part of
+           the option and the linker rejects it. Separate with a space.
+           Verified working: FindPattern, GetCurrentToc, GetTemperature and WriteProcessMemory
+           are absent from the linked PRX. It strips nothing further today because everything
+           else is reachable from the module entry points and the Detour calls in Hooks.cpp.
+           The PRX metadata the loader needs (.lib.ent.top, .lib.stub.top, .psp_lib_mark_,
+           .rodata.sceModuleInfo) is KEEP'd by the linker script; if a module ever loads but
+           misbehaves, this flag is the first suspect. -->
+      <AdditionalOptions>--strip-unused-data %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+    <Link>
+      <MapFileName>$(IntDir)$(TargetName).map</MapFileName>
+      <InfoStripping>StripSymsAndDebug</InfoStripping>
+      <DataStripping>StripFuncsAndData</DataStripping>
+      <AdditionalLibraryDirectories>$(SolutionDir)vendor\VirtualShell\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <OutputFormat>PRXFile</OutputFormat>
+    </Link>
+    <PostBuildEvent>
+      <Command>cd "$(SolutionDir)vendor\scetool\bin\"
+
+REM ---------------------------------------------------------------------------
+REM Signing.
+REM
+REM scetool signs with whatever NPD key set is in vendor\scetool\bin\data\keys.
+REM Nothing on the command line selects the firmware - the key file is the whole
+REM choice. PS3HEN loads homebrew resigned with 3.55 keys and lower, so that is
+REM what data\keys must hold. The store checked in here is exactly that set - it is
+REM byte-identical to the one TrueAncestor SELF Resigner ships, so there is no
+REM manual key step. See SIGNING.md in this directory.
+REM
+REM A 3.55 signature is the one that loads everywhere: CFW bypasses signature
+REM checks outright, HEN accepts the static pre-3.55 keys, and DEX-mode CFW runs
+REM homebrew as CEX. So a single output covers CFW, PEX/D-PEX, DEX-mode and HEN -
+REM there is deliberately no separate _HEN artifact.
+REM
+REM This previously ran:
+REM     scetool.exe    ... qDNSm.sprx
+REM     SecureTool.exe -c 1 -k APP001 -ms qDNSm.sprx qDNSm_HEN.sprx
+REM APP001 is the licensed-application key set and SecureTool is a retail PKI
+REM signer, so that second step wrote a commercial signature into the file named
+REM _HEN - the one file that therefore could NOT load on HEN. Both removed.
+REM ---------------------------------------------------------------------------
+scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 APP -6 0003004000000000 -A 0001000000000000 --self-ctrl-flags 4000000000000000000000000000000000000000000000000000000000000002 -e "$(TargetDir)$(TargetName)$(TargetExt)" "$(TargetDir)$(TargetName).sprx" 2&gt;&amp;1</Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>Sign PRX (scetool)</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Core\CrtStubs.c" />
+    <ClCompile Include="Core\InputUi.cpp" />
+    <ClCompile Include="Core\Config.cpp" />
+    <ClCompile Include="Core\Network.cpp" />
+    <ClCompile Include="Core\Input.cpp" />
+    <ClCompile Include="Core\Renderer.cpp" />
+    <ClCompile Include="Core\Menu\Base.cpp" />
+    <ClCompile Include="Core\Menu\Submenus.cpp" />
+    <ClCompile Include="Core\Helpers.cpp" />
+    <ClCompile Include="Core\Hooks.cpp" />
+    <ClCompile Include="Main.cpp" />
+    <ClCompile Include="Memory\Detour.cpp" />
+    <ClCompile Include="Memory\Memory.cpp" />
+    <ClCompile Include="Memory\Pattern.cpp" />
+    <ClCompile Include="Utils\FileSystem.cpp" />
+    <ClCompile Include="Utils\Std.cpp" />
+    <ClCompile Include="Utils\SystemCalls.cpp" />
+    <ClCompile Include="Utils\Timers.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Core\Config.hpp" />
+    <ClInclude Include="Core\Version.hpp" />
+    <ClInclude Include="Core\Network.hpp" />
+    <ClInclude Include="Core\InputUi.hpp" />
+    <ClInclude Include="Core\Input.hpp" />
+    <ClInclude Include="Core\Renderer.hpp" />
+    <ClInclude Include="Core\Menu\Base.hpp" />
+    <ClInclude Include="Core\Menu\Submenus.hpp" />
+    <ClInclude Include="Core\Helpers.hpp" />
+    <ClInclude Include="Core\Hooks.hpp" />
+    <ClInclude Include="Memory\Detour.hpp" />
+    <ClInclude Include="Memory\Memory.hpp" />
+    <ClInclude Include="Memory\Pattern.hpp" />
+    <ClInclude Include="Utils\FileSystem.hpp" />
+    <ClInclude Include="Utils\Std.hpp" />
+    <ClInclude Include="Utils\SystemCalls.hpp" />
+    <ClInclude Include="Utils\Timers.hpp" />
+    <ClInclude Include="Utils\xregistry.h" />
+  </ItemGroup>
+  <Import Condition="'$(ConfigurationType)' == 'Makefile' and Exists('$(VCTargetsPath)\Platforms\$(Platform)\SCE.Makefile.$(Platform).targets')" Project="$(VCTargetsPath)\Platforms\$(Platform)\SCE.Makefile.$(Platform).targets" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
