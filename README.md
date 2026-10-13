@@ -94,6 +94,9 @@ a server and read on launch. Delete it and qDNSm rebuilds the defaults.
 
 ## Using it
 
+To open the menu while in the XMB you need to press R1 + R2 + R3 at the same time.
+You can be holding down each of these buttons so triggering the menu open is pretty relaxed.
+
 The menu lists every server in your config. Selecting one applies it.
 
 - **Square** — edit the highlighted server
