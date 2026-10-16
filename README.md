@@ -6,9 +6,20 @@ Pick a DNS server from a list and qDNSm writes it into the console's network
 configuration. It runs as a VSH plugin on the XMB, alongside webMAN, multiMAN and
 the rest of the homebrew menu stack.
 
-![qDNSm on the XMB](resources/Screenshot.png)
+![qDNSm on the XMB](resources/qDNSm_menu_loop.webp)
 
 Works on **CFW** and **PS3HEN**, on CEX, PEX, D-PEX and DEX-mode consoles.
+
+## Contents
+
+- [The thing you have to know](#the-thing-you-have-to-know)
+- [Requirements](#requirements)
+- [Installing](#installing)
+  - [With the installer (recommended)](#with-the-installer-recommended)
+  - [Manually](#manually)
+- [Using it](#using-it)
+- [Building from source](#building-from-source)
+- [Credits](#credits)
 
 ---
 
@@ -17,13 +28,10 @@ Works on **CFW** and **PS3HEN**, on CEX, PEX, D-PEX and DEX-mode consoles.
 **qDNSm writes the DNS settings. The console still has to build a new connection
 to apply them.**
 
-So after picking a server you still need to, once:
+So after picking a server you still need to manually do the following once:
 
 > Settings → Network → Internet Connection Settings →
 > **Disable Internet Connection** → **Enable Internet Connection**
-
-Both halves. The console only reads its DNS configuration while it is building a
-connection.
 
 **Also make sure Set Manually is selected** — in automatic mode the console takes
 its DNS from DHCP and ignores what qDNSm wrote.
@@ -41,8 +49,8 @@ its DNS from DHCP and ignores what qDNSm wrote.
 
 ### With the installer (recommended)
 
-`qDNSm-Installer.pkg` installs the plugin for you. Install it like any other
-package, launch **qDNSm installer** from the XMB, and it will:
+`qDNSm-Installer.pkg` installs the plugin for you. Get the latest version from the [releases page](https://github.com/Tha14/qDNSm/releases),
+Install it like any other package, launch **qDNSm installer** from the XMB, and it will:
 
 - copy `qDNSm.sprx` to `/dev_hdd0/plugins/qDNSm.sprx`
 - add it to `/dev_hdd0/boot_plugins.txt`
@@ -54,35 +62,17 @@ run you can delete the installer itself — nothing else depends on it.
 
 ### Manually
 
-qDNSm is loaded as a boot plugin. Put the SPRX somewhere and point
-`boot_plugins.txt` at it.
+qDNSm is loaded as a boot plugin. Take `qDNSm.sprx` from the [releases page](https://github.com/Tha14/qDNSm/releases), put it in:
+`/dev_hdd0/plugins/`, and point `/dev_hdd0/boot_plugins.txt` at it:
 
 ```
 /dev_hdd0/plugins/qDNSm.sprx
 ```
 
-Then create `/dev_hdd0/boot_plugins.txt` if it does not exist, containing:
-
-```
-/dev_hdd0/plugins/qDNSm.sprx
-```
-
-and reboot.
-
-> **Note the location.** The file is `/dev_hdd0/boot_plugins.txt`, at the root of
-> the HDD — *not* inside `/dev_hdd0/plugins/`. If you previously installed
-> qDNSm by hand and have a copy in the plugins folder, it is doing nothing; move
-> it to the root.
+You may then reboot in order for the plugin to load.
 
 Some launchers manage `boot_plugins.txt` for you — if you use one, add the path
 there instead of editing the file by hand.
-
-### A note on boot_plugins.txt
-
-Loading a SPRX at boot through `boot_plugins.txt` is a **CFW / HEN** feature. It
-is not an RPCS3 feature — RPCS3's XMB is an HLE reimplementation and will not act
-on the file. A qDNSm install looks identical on RPCS3 and on hardware but only
-loads on hardware.
 
 ### Config file
 
@@ -97,18 +87,20 @@ a server and read on launch. Delete it and qDNSm rebuilds the defaults.
 To open the menu while in the XMB you need to press R1 + R2 + R3 at the same time.
 You can be holding down each of these buttons so triggering the menu open is pretty relaxed.
 
+![qDNSm loaded](resources/qDNSm_loaded.png)
+
 The menu lists every server in your config. Selecting one applies it.
 
 - **Square** — edit the highlighted server
 - **Triangle** — delete the highlighted server
 - **Circle** — back
-- **Add new DNS server** — add your own name and up to two IPs
+- **Add new DNS server** — add your own name and its primary IP address
 
 Under **qDNSm options**:
 
 | option | what it does |
 |---|---|
-| Secondary DNS | the secondary resolver address, or "Not set" |
+| Secondary DNS | the secondary resolver paired with every server |
 | Startup notification | show a notification when the plugin loads |
 | How to use | the same instructions as above, in-app |
 | About | version and credit |
