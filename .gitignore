@@ -67,3 +67,9 @@ vendor/makepkg/makepkg2.exe
 # Per-machine Visual Studio settings. Points at absolute SDK paths that only
 # exist on the machine that generated it, so it is noise in the repository.
 *.vcxproj.user
+
+# TODO.md - the running notes on everything that was tried and did not work,
+# mostly the network interface restart. Local working document, deliberately
+# not in the repository. Nothing in the tree refers to it; the source comments
+# carry the short form of what matters.
+TODO.md

@@ -1,2 +1,11 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Endings that have to be a specific one. Everything else follows core.autocrlf per clone.
+
+# cmd.exe misparses batch files with LF endings.
+*.bat text eol=crlf
+
+# These run under bash, including in the ps3dev image, where a CR breaks them.
+*.sh text eol=lf
+Makefile text eol=lf
