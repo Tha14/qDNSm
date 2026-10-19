@@ -110,7 +110,12 @@ protected:
    size_t       m_OriginalLength;            // The amount of bytes overwritten by the hook.
 
    // Shared
-   MARK_AS_EXECUTABLE static uint8_t   s_TrampolineBuffer[2048];
+   //
+   // Resident RAM, not scratch space: the buffer lives in the module's code segment for the
+   // whole session. Two hooks need about 70 bytes each - a branch relocates to two
+   // instructions, so the worst case is twice the overwritten length - and Hook() refuses to
+   // install rather than writing past the end.
+   MARK_AS_EXECUTABLE static uint8_t   s_TrampolineBuffer[256];
    static size_t                       s_TrampolineSize;
 };
 

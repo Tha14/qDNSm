@@ -62,12 +62,13 @@ bool FileExist(const std::string& filePath)
 }
 
 /*
- * Fixed read buffer for the INI. Sized for a qDNSm.ini, not for arbitrary files: an entry is
- * roughly 60 bytes ("[DNSServer12]" + Name + Primary), so 8 KB holds well over a hundred
- * servers with room to spare. This used to be 16 KB, which was 87% of the module's entire
- * zero-initialised data (measured: 16,384 of 18,816 BSS bytes in the linked PRX).
+ * Largest file ReadFileText will take. Sized for a qDNSm.ini, not for arbitrary files: an
+ * entry is roughly 60 bytes ("[DNSServer12]" + Name + Primary), so 8 KB holds well over a
+ * hundred servers with room to spare. It was a fixed 8 KB buffer in BSS, which was 83% of
+ * the module's zero-initialised data and was resident for the whole session even though it
+ * is only used while the INI is being read.
  */
-static char g_FileBuffer[8192];
+static const size_t kMaxFileSize = 8192;
 
 bool ReadFileText(const std::string& fileName, std::string& out)
 {
@@ -76,22 +77,31 @@ bool ReadFileText(const std::string& fileName, std::string& out)
     if (cellFsStat(fileName.c_str(), &stat) != CELL_FS_SUCCEEDED)
         return false;
 
-    if (static_cast<size_t>(stat.st_size) >= sizeof(g_FileBuffer))
+    if (static_cast<size_t>(stat.st_size) >= kMaxFileSize)
         return false;
 
     int handle;
     if (cellFsOpen(fileName.c_str(), CELL_FS_O_RDONLY, &handle, NULL, 0) != CELL_FS_SUCCEEDED)
         return false;
 
+    if (stat.st_size == 0)
+    {
+        cellFsClose(handle);
+        out.clear();
+        return true;
+    }
+
+    out.resize((size_t)stat.st_size);
+
     uint64_t read = 0;
-    CellFsErrno err = cellFsRead(handle, g_FileBuffer, (uint64_t)stat.st_size, &read);
+    CellFsErrno err = cellFsRead(handle, &out[0], (uint64_t)stat.st_size, &read);
 
     cellFsClose(handle);
 
     if (err != CELL_FS_SUCCEEDED)
         return false;
 
-    out.assign(g_FileBuffer, (size_t)read);
+    out.resize((size_t)read);
     return true;
 }
 

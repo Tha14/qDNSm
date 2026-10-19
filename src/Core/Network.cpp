@@ -14,6 +14,8 @@ extern "C" {
 }
 
 #include "../Utils/Timers.hpp"   // Sleep
+#include "Helpers.hpp"
+#include <vsh/vshmain.hpp>
 #include <cstring>
 
 /*
@@ -191,6 +193,8 @@ static void ManualDnsWorker(uint64_t arg)
 {
 	(void)arg;
 
+	int ticks = 0;
+
 	/* Poll rather than block, so the request is never anything more than a flag store on the
 	 * caller's thread. The apply path is the XMB's frame loop. */
 	while (true)
@@ -201,6 +205,20 @@ static void ManualDnsWorker(uint64_t arg)
 
 			EnsureManualDns();
 		}
+
+		/*
+		 * Whether the XMB is in front decides two things: whether the pad hook should be
+		 * masking buttons, and whether our widgets are still attached to a live tree. A game
+		 * takes the XMB down, and nothing of ours runs while it is down, so the only place
+		 * that can notice is here.
+		 *
+		 * The cooperation mode is a read of the VSH's own state rather than a walk of the
+		 * plugin list, which matters from a thread that is not the VSH's. It changes on the
+		 * scale of seconds, so it is checked once a second rather than four times.
+		 */
+		ticks++;
+		if ((ticks % 4) == 0)
+			g_Helpers.m_GameRunning = (vsh::GetCooperationMode() != vsh::CooperationMode::XMB);
 
 		Sleep(250);
 	}

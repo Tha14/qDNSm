@@ -245,6 +245,21 @@ void Detour::Hook(uintptr_t fnAddress, uintptr_t fnCallback, uintptr_t tocOverri
 
    m_OriginalLength = HookSize;
 
+   /*
+    * Room for the trampoline before writing any of it. A branch that does not fit in one
+    * instruction is relocated to two, so the worst case is twice the overwritten length, plus
+    * the branch back to the original function. Refusing to install is better than writing
+    * past the end of a buffer that is a fixed size.
+    */
+   const size_t needed = (HookSize * 2) + 16;
+
+   if (needed > (sizeof(s_TrampolineBuffer) - s_TrampolineSize))
+   {
+      m_OriginalLength = 0;
+      m_HookAddress = nullptr;
+      return;
+   }
+
    // Create trampoline and copy and fix instructions to the trampoline.
    m_TrampolineAddress = &s_TrampolineBuffer[s_TrampolineSize];
 

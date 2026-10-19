@@ -50,7 +50,7 @@ int cellPadGetDataExtraInternalHook(void* r3, uint32_t portNum, uint32_t* device
 
     g_Input.SetInputData(data);
 
-    if (g_Menu.IsOpened())
+    if (g_Menu.IsOpened() && !g_Helpers.m_GameRunning)
     {
         /*
          * Always mask while the menu is up, including while the input UI owns the screen - the XMB
@@ -59,6 +59,10 @@ int cellPadGetDataExtraInternalHook(void* r3, uint32_t portNum, uint32_t* device
          *
          * This used to be `if (!g_InputUi.IsActive())`, which stopped masking exactly when it was
          * most needed and let input through to the XMB.
+         *
+         * Not while a game is running. The XMB takes the menu's close animation with it when a
+         * game starts, so the menu never finishes closing and the mask would otherwise stay on
+         * for the rest of the session, and the game would get no buttons at all.
          */
         data->button[CELL_PAD_BTN_OFFSET_DIGITAL1] &= ~(CELL_PAD_CTRL_LEFT | CELL_PAD_CTRL_DOWN | CELL_PAD_CTRL_RIGHT | CELL_PAD_CTRL_UP);
         data->button[CELL_PAD_BTN_OFFSET_DIGITAL2] &= ~(CELL_PAD_CTRL_CROSS | CELL_PAD_CTRL_CIRCLE | CELL_PAD_CTRL_SQUARE | CELL_PAD_CTRL_TRIANGLE);

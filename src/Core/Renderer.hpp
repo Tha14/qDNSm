@@ -57,6 +57,9 @@ private:
     paf::PhText* GetCurrentText();
     paf::PhPlane* GetCurrentPlane();
 
+    void TrimPool(int keepText, int keepPlane);
+    void ForgetWidgets();
+
     void ViewportScale(paf::vec2& vec);
     void ViewportScaleVertical(float& value);
 
@@ -76,6 +79,16 @@ public:
     paf::PhPlane* m_PlaneNode{};
 
     paf::PhPlane* m_PlaneOnTop{};
+
+private:
+    /*
+     * The XMB widget our groups are parented to, as it was when they were created.
+     *
+     * If the XMB is torn down and rebuilt - which is what happens when a game starts - the
+     * old widget and everything under it is gone, and our pointers into that tree are stale.
+     * Comparing the pointer values is safe; dereferencing them is not.
+     */
+    paf::PhWidget* m_Parent{};
 };
 
 extern Renderer g_Renderer;

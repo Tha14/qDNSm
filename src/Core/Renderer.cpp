@@ -10,17 +10,35 @@ Renderer::~Renderer()
 void Renderer::OnUpdate()
 {
     m_CanDraw = false;
+
+    /*
+     * The pool is a cache for the frame that is coming, not for the session. A text prompt
+     * draws forty glyphs and the menu draws about a dozen, and the prompt's widgets are the
+     * bulk of the module's heap - so whatever the last frame did not use goes back now, on
+     * this thread, where deleting paf widgets is safe.
+     */
+    TrimPool(m_CurrentText, m_CurrentPlane);
+
     m_CurrentText = 0;
     m_CurrentPlane = 0;
+
+    /*
+     * The XMB can be torn down and rebuilt while we are not looking - that is what a game
+     * start does. The widget our groups were parented to went with the old tree, so our
+     * pointers into it are stale. Comparing the pointer values is safe; dereferencing them
+     * is not, so they are dropped rather than deleted.
+     */
+    if (m_Parent != g_Helpers.m_PageAutoOffGuide)
+    {
+        ForgetWidgets();
+        m_Parent = g_Helpers.m_PageAutoOffGuide;
+    }
 
     if (!g_Helpers.m_SystemPlugin)
         return;
 
     if (!g_Helpers.m_PageAutoOffGuide)
-    {
-        DestroyWidgets();
         return;
-    }
 
     // check if our widgets are still allocated
     if (m_PlaneOnTop)
@@ -37,6 +55,40 @@ void Renderer::OnUpdate()
     DestroyUnusedWidgets();
     HideWidgets();
     m_CanDraw = true;
+}
+
+void Renderer::TrimPool(int keepText, int keepPlane)
+{
+    while (static_cast<int>(m_TextNodeChilds.size()) > keepText)
+    {
+        delete m_TextNodeChilds.back();
+        m_TextNodeChilds.pop_back();
+    }
+
+    while (static_cast<int>(m_PlaneNodeChilds.size()) > keepPlane)
+    {
+        delete m_PlaneNodeChilds.back();
+        m_PlaneNodeChilds.pop_back();
+    }
+}
+
+/*
+ * Drop the widgets without deleting them. For when the tree that owned them is already gone:
+ * the memory went with it, and deleting them would be a double free.
+ */
+void Renderer::ForgetWidgets()
+{
+    m_CanDraw = false;
+
+    m_TextNodeChilds.clear();
+    m_PlaneNodeChilds.clear();
+
+    m_TextNode = nullptr;
+    m_PlaneNode = nullptr;
+    m_PlaneOnTop = nullptr;
+
+    m_CurrentText = 0;
+    m_CurrentPlane = 0;
 }
 
 void Renderer::DestroyWidgets()
@@ -74,13 +126,28 @@ void Renderer::DestroyWidgets()
 
 void Renderer::DestroyUnusedWidgets()
 {
-    for (int i = 0; i < m_TextNodeChilds.size(); i++)
+    /*
+     * Delete as well as erase. Dropping the pointer without deleting it leaked the widget
+     * and left it attached to the XMB's widget tree, and erasing while iterating with a
+     * fixed bound skipped the element after the one that went.
+     */
+    for (int i = static_cast<int>(m_TextNodeChilds.size()) - 1; i >= 0; i--)
+    {
         if (m_TextNodeChilds[i]->colorScale.a == 0.0)
+        {
+            delete m_TextNodeChilds[i];
             m_TextNodeChilds.erase(m_TextNodeChilds.begin() + i);
+        }
+    }
 
-    for (int i = 0; i < m_PlaneNodeChilds.size(); i++)
+    for (int i = static_cast<int>(m_PlaneNodeChilds.size()) - 1; i >= 0; i--)
+    {
         if (m_PlaneNodeChilds[i]->colorScale.a == 0.0)
+        {
+            delete m_PlaneNodeChilds[i];
             m_PlaneNodeChilds.erase(m_PlaneNodeChilds.begin() + i);
+        }
+    }
 }
 
 void Renderer::HideWidgets()
@@ -97,6 +164,8 @@ void Renderer::HideWidgets()
 void Renderer::CreateGroups()
 {
     DestroyWidgets();
+
+    m_Parent = g_Helpers.m_PageAutoOffGuide;
 
     m_PlaneNode = CreatePlane();
 
