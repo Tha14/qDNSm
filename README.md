@@ -19,6 +19,7 @@ Works on **CFW** and **PS3HEN**, on CEX, PEX, D-PEX and DEX-mode consoles.
   - [Manually](#manually)
 - [Using it](#using-it)
 - [Building from source](#building-from-source)
+- [LLM disclosure](#llm-disclosure)
 - [Credits](#credits)
 
 ---
@@ -168,6 +169,15 @@ That takes `bin\Release-PS3\qDNSm.sprx` and
 `bin\Release-PS3\qDNSm-Installer.pkg`. It needs Python 3 and nothing else.
 
 See [`installer_src/README.md`](installer_src/README.md) for details.
+
+---
+
+## LLM disclosure
+
+Most of this was written by hand, but an LLM helped with some of it — the documentation and
+some of the scripts, tracking down and fixing bugs, and looking into automating the network
+interface restart. That last one needed a lot more work than expected and may not be possible
+to make reliable on HEN, so it was dropped until someone can research it properly.
 
 ---
 
