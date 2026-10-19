@@ -15,7 +15,7 @@ rem  Requirements: Python 3 on PATH. That is all.
 rem
 rem  The EBOOT.BIN is already signed and this does NOT re-sign it. Do not add a
 rem  make_self_npdrm call here: that skips the strip and sprx_tool steps the real
-rem  build performs and produces an EBOOT that will not load. (TODO.md item 1)
+rem  build performs and produces an EBOOT that will not load.
 rem
 rem  Usage:  package-installer.bat
 rem ============================================================================

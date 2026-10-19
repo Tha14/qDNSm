@@ -3,8 +3,6 @@
 #include "Menu/Base.hpp"
 #include "Menu/Submenus.hpp"   // UpdateDnsFlow
 #include "InputUi.hpp"
-#include <vsh/stdc.hpp>
-#include "../Utils/Timers.hpp"   // Sleep
 #include <cell/pad/pad_codes.h>
 
 /*

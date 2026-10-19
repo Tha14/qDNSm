@@ -34,11 +34,6 @@ namespace FakeFs
         g_Fs[path] = std::vector<uint8_t>(text.begin(), text.end());
     }
 
-    void PutBytes(const std::string& path, const uint8_t* data, size_t size)
-    {
-        g_Fs[path] = std::vector<uint8_t>(data, data + size);
-    }
-
     std::string Get(const std::string& path)
     {
         std::map<std::string, std::vector<uint8_t> >::iterator it = g_Fs.find(path);
@@ -96,10 +91,7 @@ namespace FakeFs
 
 namespace InstFs
 {
-    bool SelfDirectory(Small::Str& out) { return out.Set("/dev_hdd0/game/NPUB72381/USRDIR/"); }
-
     bool FileExists(const Small::Str& path) { return FakeFs::Exists(path.c()); }
-    bool DirectoryExists(const Small::Str& path) { (void)path; return true; }
 
     int64_t FileSize(const Small::Str& path)
     {
@@ -148,16 +140,8 @@ namespace InstFs
         return memcmp(&it->second[0], data, size) == 0;
     }
 
-    bool WriteBinaryStaged(const Small::Str& path, const uint8_t* data, size_t size)
-    {
-        (void)path; (void)data; (void)size;
-        return true;
-    }
-
     bool DeleteFile(const Small::Str& path)
     {
         return FakeFs::g_Fs.erase(path.c()) != 0 || true;
     }
-
-    bool EnsureDirectory(const Small::Str& path) { (void)path; return true; }
 }

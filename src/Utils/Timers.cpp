@@ -7,28 +7,6 @@ uint64_t GetTimeNow()
     return sys_time_get_system_time() / 1000;
 } 
 
-/*
-* Example useage: 
-*  while (true)
-*  {
-*      uint64_t elapse = GetElapseAsMsec(mUpdateTime);
-*      if (elapse > 1000) 
-*      {
-*          // update status every 1 second
-*          SYS_TIMEBASE_GET(mUpdateTime);
-*
-*          // your code...
-*      }
-*  } 
-*/
-uint64_t GetElapseAsMsec(uint64_t from)
-{
-    uint64_t now;
-    SYS_TIMEBASE_GET(now);
-    uint64_t freq = sys_time_get_timebase_frequency(); // This function returns the Time Base frequency in Hz
-    return ((now - from) * 1000 / freq);
-}
-
 void Sleep(uint64_t ms)
 {
     sys_timer_usleep(ms * 1000);
@@ -121,55 +99,6 @@ void Timer::Add(float* from, float to, uint64_t duration, uint64_t startDelay, f
 
     if (!isPresent)
         m_TimerStack.push_back(newTimer);
-}
-
-void Timer::Add(paf::vec2* from, paf::vec2 to, uint64_t duration, uint64_t startDelay, float(*interpolation)(float))
-{
-    if (!from)
-        return;
-
-    for (int i = 0; i < 2; i++)
-        Add(&from->operator[](i), to[i], duration, startDelay, interpolation, nullptr);
-}
-
-void Timer::Add(paf::vec3* from, paf::vec3 to, uint64_t duration, uint64_t startDelay, float(*interpolation)(float))
-{
-    if (!from)
-        return;
-
-    for (int i = 0; i < 3; i++)
-        Add(&from->operator[](i), to[i], duration, startDelay, interpolation, nullptr);
-}
-
-void Timer::Add(paf::vec4* from, paf::vec4 to, uint64_t duration, uint64_t startDelay, float(*interpolation)(float))
-{
-    if (!from)
-        return;
-
-    for (int i = 0; i < 4; i++)
-        Add(&from->operator[](i), to[i], duration, startDelay, interpolation, nullptr);
-}
-
-void Timer::Add(int* from, int to, uint64_t duration, uint64_t startDelay, float(*interpolation)(float), void(*callback)(int*))
-{
-    Add((float*)from, *(float*)&to, duration, startDelay, interpolation, (void(*)(float*))callback);
-}
-
-void Timer::Add(bool* toggle, uint64_t delayBeforeToggle)
-{
-    if (!toggle)
-        return;
-
-    // it just works
-    int to = *toggle ^ 1;
-    Add((float*)toggle, *(float*)&to, 0, delayBeforeToggle, nullptr, [](float* pFrom)
-    {
-        if (pFrom)
-        {
-            bool* pToggle = reinterpret_cast<bool*>(pFrom);
-            *pToggle ^= 1;
-        }
-    });
 }
 
 void Timer::OnUpdate()

@@ -377,8 +377,6 @@ const char* Describe(Result result)
             return "Could not back up boot_plugins.txt. Nothing was changed.";
         case WriteFailed:
             return "Could not update boot_plugins.txt. The previous contents were restored from boot_plugins.txt.qdnsm-bak.";
-        case VerifyFailed:
-            return "boot_plugins.txt did not verify after writing. Nothing was changed.";
     }
     return "Unknown error.";
 }

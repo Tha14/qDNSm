@@ -57,6 +57,7 @@ CONTENTID	:=	UP0001-$(APPID)_00-0000000000000000
 PKGFILES	:=	$(CURDIR)/../packaging/pkgfiles
 ICON0		:=	$(CURDIR)/../packaging/assets/ICON0.PNG
 PAYLOAD		:=	$(CURDIR)/../bin/Release-PS3/qDNSm.sprx
+EBOOT		:=	$(CURDIR)/../bin/Release-PS3/installer/EBOOT.BIN
 
 CFLAGS		=	-O2 -Wall -mcpu=cell $(MACHDEP) $(INCLUDE)
 CXXFLAGS	=	$(CFLAGS) -DQDNSM_PSL1GHT
@@ -66,7 +67,7 @@ LDFLAGS		=	$(MACHDEP) -Wl,-Map,$(notdir $@).map
 # Same set the PSL1GHT samples and pkgi use. -lsysutil is the one that was
 # missing; the rest are here to match a known-good link line rather than because
 # the installer calls them directly.
-LIBS	:=	-lrsx -lgcm_sys -lio -lsysutil -lrt -llv2 -lm -lsysfs -lsysmodule
+LIBS	:=	-lrsx -lgcm_sys -lio -lsysutil -lrt -llv2 -lsysfs
 
 LIBDIRS	:=	
 
@@ -119,6 +120,11 @@ pkg: $(BUILD)
 	@mkdir -p $(PKGFILES)/USRDIR
 	@cp $(PAYLOAD) $(PKGFILES)/USRDIR/qDNSm.sprx
 	@$(MAKE) --no-print-directory $(OUTPUT).pkg
+	@mkdir -p $(dir $(EBOOT))
+	@cp $(BUILDDIR)/pkg/USRDIR/EBOOT.BIN $(EBOOT)
+	@grep -q 'NPD' $(EBOOT) || { echo "ERROR: the EBOOT carries no NPD block."; echo "       The console rejects an EBOOT without one, with SCE_NP_DRM_ERROR_FORMAT"; echo "       (80029530), and it does so as \"Corrupted Data\"."; exit 1; }
+	@grep -q '$(CONTENTID)' $(EBOOT) || { echo "ERROR: the EBOOT does not carry the content ID $(CONTENTID)."; exit 1; }
+	@echo "EBOOT ready: $(EBOOT)"
 
 # Wrap the ELF in a SELF. PSL1GHT's base_rules provide this; it is stated here so
 # the dependency is visible rather than inherited.

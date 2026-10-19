@@ -70,7 +70,7 @@ __ALWAYS_INLINE R CallByAddr(uint32_t addr, Args... args)
 template <typename R, typename... Args>
 __ALWAYS_INLINE R CallByOpd(opd_s opd, Args... args)
 {
-	if (opd.sub && opd.toc) 
+	if (opd.func && opd.toc) 
 	{
 		R(*fn)(Args...) = (R(*)(Args...))&opd;
 		return fn(args...);

@@ -112,47 +112,9 @@ namespace Small
             return true;
         }
 
-        bool Append(const Str& other)
-        {
-            return Append(other.c());
-        }
-
-        bool AppendChar(char ch)
-        {
-            if (m_len + 1 >= kMaxPath)
-                return false;
-
-            m_s[m_len++] = ch;
-            m_s[m_len] = '\0';
-            return true;
-        }
-
         const char* c() const { return m_s; }
         size_t size() const { return m_len; }
         char at(size_t i) const { return m_s[i]; }
-
-        bool operator==(const Str& other) const
-        {
-            return m_len == other.m_len && memcmp(m_s, other.m_s, m_len) == 0;
-        }
-
-        bool operator!=(const Str& other) const { return !(*this == other); }
-
-        bool Equals(const char* literal) const
-        {
-            return strcmp(m_s, literal) == 0;
-        }
-
-        /*! Index of the last '/', or kNpos. */
-        size_t LastSlash() const
-        {
-            for (size_t i = m_len; i > 0; i--)
-            {
-                if (m_s[i - 1] == '/')
-                    return i - 1;
-            }
-            return kNpos;
-        }
 
         /*! Keep [0, index), adding the NUL. False if index is out of range. */
         bool Truncate(size_t index)
@@ -251,8 +213,6 @@ namespace Small
 
         const uint8_t* data() const { return m_data; }
         uint8_t* data() { return m_data; }
-
-        uint8_t at(size_t i) const { return m_data[i]; }
 
         /*! Byte-for-byte comparison, including length. */
         bool Equals(const void* other, size_t len) const

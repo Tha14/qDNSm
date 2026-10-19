@@ -62,7 +62,6 @@
  * a confirmation prompt, added when a UI exists.
  */
 
-#include "TargetCompat.hpp"
 
 #include "Small.hpp"
 #include "InstallerFs.hpp"
@@ -85,18 +84,9 @@ SYS_MODULE_INFO(NPUB72381, 0, 1, 1);
 #endif
 
 /*
- * Both entry points are defined, and both are needed.
- *
- * The PRX-format linker script - which is the only container scetool's input can
- * be - places the module around SYS_MODULE_START/module_stop, so those symbols
- * have to exist for the code to be laid out at all. The PS3 game loader, on the
- * other hand, calls main() on an EBOOT.
- *
- * Both delegate to the same RunInstaller(), so the installer logic is reachable
- * from either entry and cannot be stripped as unreachable.
- *
- * The extern "C" below is load-bearing, not stylistic. See the comment on the
- * module_start definition.
+ * An EBOOT is entered through main(), not through SYS_MODULE_START, so this module defines
+ * no module_start/module_stop. The macros below are the SNC/PRX path, which is not built:
+ * the installer has a single Makefile and it always defines QDNSM_PSL1GHT.
  */
 #ifndef QDNSM_PSL1GHT
 SYS_MODULE_START(module_start);
@@ -363,32 +353,6 @@ namespace
         Dialog::VideoFinish();
         return 0;
     }
-}
-
-/*
- * extern "C" is required on module_start and module_stop. SYS_MODULE_START emits
- * a reference to the unmangled symbol name; a plain C++ definition mangles to
- * _Z12module_startjPv, the reference is left undefined, and the link fails with:
- *
- *   ppu-lv2-prx-libgen.exe: "module_start" is undefine symbol. can't export.
- *
- * qDNSm's Main.cpp has no extern "C" and still links, because the macro's own
- * declaration supplies the linkage there. Stating it here does not depend on that,
- * and it is not safe to remove - the symptom is an opaque link error, not a
- * warning.
- */
-extern "C" int module_start(unsigned int args, void* argp)
-{
-    (void)args;
-    (void)argp;
-    return RunInstaller();
-}
-
-extern "C" int module_stop(unsigned int args, void* argp)
-{
-    (void)args;
-    (void)argp;
-    return 0;
 }
 
 /*

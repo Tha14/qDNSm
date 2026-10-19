@@ -25,25 +25,6 @@ static const int NUMERIC_ROWS = 4;
 
 static const int MAX_TEXT_LENGTH = 63;
 
-#ifdef ENABLE_GLYPH_BROWSER
-/* Temporary glyph-browser constants - see BeginGlyphs in the header. */
-static const unsigned int GLYPH_FIRST = 0xF000;
-static const unsigned int GLYPH_LAST = 0xF8FF;
-static const int GLYPH_COLUMNS = 16;
-static const int GLYPH_ROWS = 8;
-static const int GLYPH_PER_PAGE = GLYPH_COLUMNS * GLYPH_ROWS;
-static const int GLYPH_PAGE_COUNT = (((GLYPH_LAST - GLYPH_FIRST + 1) / GLYPH_PER_PAGE) + 1);
-
-static std::wstring HexLabel(const char* text)
-{
-	std::wstring out;
-	for (const char* p = text; *p; p++)
-		out += static_cast<wchar_t>(static_cast<unsigned char>(*p));
-
-	return out;
-}
-#endif
-
 static const float BOX_WIDTH = 900.0f;
 static const float BOX_HEIGHT = 420.0f;
 static const float CELL_HEIGHT = 56.0f;
@@ -111,22 +92,6 @@ void InputUi::BeginConfirm(const std::wstring& title, const std::string& message
 	m_HasResult = false;
 }
 
-#ifdef ENABLE_GLYPH_BROWSER
-void InputUi::BeginGlyphs(unsigned int startCode)
-{
-	unsigned int first = (startCode < GLYPH_FIRST) ? GLYPH_FIRST : startCode;
-
-	m_Mode = Mode_Glyphs;
-	m_GlyphPage = static_cast<int>((first - GLYPH_FIRST) / GLYPH_PER_PAGE);
-	m_GlyphIndex = static_cast<int>((first - GLYPH_FIRST) % GLYPH_PER_PAGE);
-	m_Title = L"Glyph browser";
-	m_Text.clear();
-	m_Message.clear();
-	m_Result = Result_None;
-	m_HasResult = false;
-}
-
-#endif
 void InputUi::ConsumeResult()
 {
 	m_HasResult = false;
@@ -195,56 +160,6 @@ void InputUi::Update()
 		m_HasResult = true;
 		return;
 	}
-
-#ifdef ENABLE_GLYPH_BROWSER
-	if (m_Mode == Mode_Glyphs)
-	{
-		if (g_Input.IsButtonDownFor(Input::BUTTON_PAD_LEFT, 180))
-			m_GlyphIndex = (m_GlyphIndex + GLYPH_PER_PAGE - 1) % GLYPH_PER_PAGE;
-
-		if (g_Input.IsButtonDownFor(Input::BUTTON_PAD_RIGHT, 180))
-			m_GlyphIndex = (m_GlyphIndex + 1) % GLYPH_PER_PAGE;
-
-		if (g_Input.IsButtonDownFor(Input::BUTTON_PAD_UP, 180))
-			m_GlyphIndex = (m_GlyphIndex + GLYPH_PER_PAGE - GLYPH_COLUMNS) % GLYPH_PER_PAGE;
-
-		if (g_Input.IsButtonDownFor(Input::BUTTON_PAD_DOWN, 180))
-			m_GlyphIndex = (m_GlyphIndex + GLYPH_COLUMNS) % GLYPH_PER_PAGE;
-
-		/* Page through: one page per press, four for coarse scrubbing. */
-		int page = m_GlyphPage;
-
-		if (g_Input.IsButtonDownFor(Input::BUTTON_L1, 250))
-			page--;
-
-		if (g_Input.IsButtonDownFor(Input::BUTTON_R1, 250))
-			page++;
-
-		if (g_Input.IsButtonDownFor(Input::BUTTON_L2, 250))
-			page -= 4;
-
-		if (g_Input.IsButtonDownFor(Input::BUTTON_R2, 250))
-			page += 4;
-
-		if (page < 0)
-			page = 0;
-
-		if (page >= GLYPH_PAGE_COUNT)
-			page = GLYPH_PAGE_COUNT - 1;
-
-		m_GlyphPage = page;
-
-		if (ConfirmButtonPressed())
-		{
-			m_Result = Result_Confirmed;
-			m_Mode = Mode_None;
-			m_HasResult = true;
-		}
-
-		return;
-	}
-
-#endif
 
 	if (m_Mode == Mode_Confirm)
 	{
@@ -562,63 +477,6 @@ void InputUi::DrawInfo()
 	}
 }
 
-#ifdef ENABLE_GLYPH_BROWSER
-void InputUi::DrawGlyphBrowser()
-{
-	float cellWidth = 44.0f;
-	float cellHeight = 44.0f;
-	float gridWidth = cellWidth * GLYPH_COLUMNS;
-	float gridHeight = cellHeight * GLYPH_ROWS;
-
-	float startX = m_BoxLeft + ((m_BoxWidth - gridWidth) / 2.0f);
-	float startY = m_BoxMaxY - 110.0f;
-
-	unsigned int base = GLYPH_FIRST + (unsigned int)(m_GlyphPage * GLYPH_PER_PAGE);
-
-	for (int row = 0; row < GLYPH_ROWS; row++)
-	{
-		for (int column = 0; column < GLYPH_COLUMNS; column++)
-		{
-			int index = (row * GLYPH_COLUMNS) + column;
-
-			float x = startX + (column * cellWidth);
-			float y = startY - (row * cellHeight);
-
-			if (index == m_GlyphIndex)
-				DrawSelection(x + (cellWidth / 2.0f), y + (cellHeight / 2.0f), cellWidth, cellHeight);
-
-			std::wstring glyph;
-			glyph += static_cast<wchar_t>(static_cast<unsigned short>(base + index));
-
-			g_Renderer.Text(glyph, paf::vec2(x + (cellWidth / 2.0f), y + (cellHeight / 2.0f)), 26.0f,
-				paf::vec4(1.0f, 1.0f, 1.0f, 1.0f), Renderer::Centered, Renderer::Centered);
-		}
-	}
-
-	unsigned int selected = base + (unsigned int)m_GlyphIndex;
-	char code[8];
-
-	const char* digits = "0123456789ABCDEF";
-	for (int i = 0; i < 4; i++)
-		code[i] = digits[(selected >> (12 - (i * 4))) & 0xF];
-
-	code[4] = 0;
-
-	std::wstring label = L"CODE ";
-	for (int i = 0; i < 4; i++)
-		label += static_cast<wchar_t>(static_cast<unsigned char>(code[i]));
-
-	g_Renderer.Text(label, paf::vec2(m_BoxLeft + (m_BoxWidth / 2.0f), startY - gridHeight - 60.0f), 34.0f,
-		paf::vec4(0.0f, 1.0f, 1.0f, 1.0f), Renderer::Centered, Renderer::Centered);
-
-	char pageLabel[32];
-	vsh::snprintf(pageLabel, sizeof(pageLabel), "PAGE %d / %d", m_GlyphPage + 1, GLYPH_PAGE_COUNT);
-
-	g_Renderer.Text(HexLabel(pageLabel), paf::vec2(m_BoxLeft + 30.0f, m_BoxMinY + 30.0f), 16.0f,
-		paf::vec4(0.7f, 0.7f, 0.7f, 1.0f), Renderer::Left, Renderer::Centered);
-}
-
-#endif
 void InputUi::Draw()
 {
 	if (m_Mode == Mode_None)
@@ -630,16 +488,6 @@ void InputUi::Draw()
 		DrawBox(760.0f, 460.0f);
 	else
 		DrawBox(BOX_WIDTH, BOX_HEIGHT);
-
-#ifdef ENABLE_GLYPH_BROWSER
-	if (m_Mode == Mode_Glyphs)
-	{
-		DrawTitle();
-		DrawGlyphBrowser();
-		DrawFooter(L"L1/R1: page    L2/R2: skip 4", L"Circle: back    X: choose");
-		return;
-	}
-#endif
 
 	DrawTitle();
 

@@ -135,7 +135,8 @@ bool Menu::IsLeftOrRightPressed()
 
 bool Menu::IsHovered()
 {
-   return IsOpened() && (m_CurrentOption == m_PrintingOption);
+   /* An off-screen row must not answer to the buttons. */
+   return IsOpened() && IsVisible(m_Selection, maxOptionsPerPage) && (m_Selection.option == m_PrintingOption);
 }
 
 bool Menu::IsPressed()
@@ -167,15 +168,24 @@ void Menu::OnOpen()
    m_StateOpened = true;
    m_CurrentMenu = (m_SavedMenu == nullptr) ? m_MainMenu : m_SavedMenu;
    m_SubmenuLevel = (m_SavedMenu == nullptr) ? 0 : m_SavedSubmenuLevel;
-   m_CurrentOption = (m_SavedMenu == nullptr) ? 1 : m_SavedCurrentOption;
-   m_CurrentIndex = (m_SavedMenu == nullptr) ? 1 : m_SavedCurrentIndex;
+
+   if (m_SavedMenu == nullptr)
+   {
+      m_Selection.option = 1;
+      m_Selection.index = 1;
+      m_Selection.total = 0;
+   }
+   else
+   {
+      m_Selection = m_SavedSelection;
+   }
 
    // opening animation
    g_Timer.Add(&m_OpacityBackground, colorBackground.a, 200);
    g_Timer.Add(&m_OpacityGlobal, 1, 200);
    g_Timer.Add(&m_OpacityHighlightBar, 0.65, 200, 200);
    g_Timer.Add(&m_OpacityText, 1, 200, 200);
-   g_Timer.Add(&m_HighlightBarPosY, (m_CurrentOption - m_CurrentIndex) * sizeText, 250);
+   g_Timer.Add(&m_HighlightBarPosY, (m_Selection.option - m_Selection.index) * sizeText, 250);
 
    stateMoving = true;
 }
@@ -186,8 +196,7 @@ void Menu::OnClose()
    stateMoving = false;
    m_SavedMenu = m_CurrentMenu;
    m_SavedSubmenuLevel = m_SubmenuLevel;
-   m_SavedCurrentOption = m_CurrentOption;
-   m_SavedCurrentIndex = m_CurrentIndex;
+   m_SavedSelection = m_Selection;
 
    // closing animation
    g_Timer.Add(&m_SizeBackground, 0, 200, 200);
@@ -199,52 +208,27 @@ void Menu::OnClose()
 
 void Menu::OnBack()
 {
+   /* A negative level would index m_LastSubmenu out of bounds. */
+   if (m_SubmenuLevel <= 0)
+      return;
+
    m_SubmenuLevel--;
    m_CurrentMenu = m_LastSubmenu[m_SubmenuLevel];
-   m_CurrentOption = m_LastOption[m_SubmenuLevel];
-   m_CurrentIndex = m_LastIndex[m_SubmenuLevel];
+   m_Selection = m_LastSelection[m_SubmenuLevel];
 
-   g_Timer.Add(&m_HighlightBarPosY, (m_CurrentOption - m_CurrentIndex) * sizeText, 250);
+   g_Timer.Add(&m_HighlightBarPosY, (m_Selection.option - m_Selection.index) * sizeText, 250);
 }
 
 void Menu::OnScrollUp()
 {
-   m_CurrentOption--;
-
-   /*if (m_CurrentOption < m_CurrentIndex)
-      m_CurrentIndex = m_CurrentOption;*/
-
-      // Better infinite scrolling
-   if (m_CurrentOption == m_CurrentIndex + 1 && m_CurrentIndex > 1)
-      m_CurrentIndex--;
-
-   if (m_CurrentOption < 1)
-   {
-      m_CurrentOption = m_TotalOptions;
-      m_CurrentIndex = (m_TotalOptions > maxOptionsPerPage) ? m_CurrentOption - maxOptionsPerPage + 1 : 1;
-   }
-
-   g_Timer.Add(&m_HighlightBarPosY, (m_CurrentOption - m_CurrentIndex) * sizeText, 250);
+   MoveUp(m_Selection, maxOptionsPerPage);
+   g_Timer.Add(&m_HighlightBarPosY, (m_Selection.option - m_Selection.index) * sizeText, 250);
 }
 
 void Menu::OnScrollDown()
 {
-   m_CurrentOption++;
-
-   /*if (m_CurrentOption >= (m_CurrentIndex + maxOptionsPerPage))
-      m_CurrentIndex = m_CurrentOption - maxOptionsPerPage + 1;*/
-
-      // Better infinite scrolling
-   if (m_CurrentOption == m_CurrentIndex + maxOptionsPerPage - 2 && m_CurrentIndex < m_TotalOptions - maxOptionsPerPage + 1)
-      m_CurrentIndex++;
-
-   if (m_CurrentOption > m_TotalOptions)
-   {
-      m_CurrentOption = 1;
-      m_CurrentIndex = 1;
-   }
-
-   g_Timer.Add(&m_HighlightBarPosY, (m_CurrentOption - m_CurrentIndex) * sizeText, 250);
+   MoveDown(m_Selection, maxOptionsPerPage);
+   g_Timer.Add(&m_HighlightBarPosY, (m_Selection.option - m_Selection.index) * sizeText, 250);
 }
 
 void Menu::EnterSubmenu(Function submenu)
@@ -252,15 +236,20 @@ void Menu::EnterSubmenu(Function submenu)
    if (submenu == nullptr)
       return;
 
+   /* m_LastSelection is indexed by the level being left, and the level is about to grow. */
+   if ((m_SubmenuLevel + 1) >= static_cast<int>(maxSubmenuLevels))
+      return;
+
    m_LastSubmenu[m_SubmenuLevel] = m_CurrentMenu;
-   m_LastOption[m_SubmenuLevel] = m_CurrentOption;
-   m_LastIndex[m_SubmenuLevel] = m_CurrentIndex;
+   m_LastSelection[m_SubmenuLevel] = m_Selection;
+
    m_CurrentMenu = submenu;
-   m_CurrentOption = 1;
-   m_CurrentIndex = 1;
+   m_Selection.option = 1;
+   m_Selection.index = 1;
+   m_Selection.total = 0;
    m_SubmenuLevel++;
 
-   g_Timer.Add(&m_HighlightBarPosY, (m_CurrentOption - m_CurrentIndex) * sizeText, 200);
+   g_Timer.Add(&m_HighlightBarPosY, (m_Selection.option - m_Selection.index) * sizeText, 200);
 }
 
 void Menu::ChangeSubmenu(Function submenu)
@@ -341,7 +330,7 @@ void Menu::UpdateBackgroundSize()
 {
     if (m_StateOpened)
     {
-        int optionsCount = (m_TotalOptions > maxOptionsPerPage) ? maxOptionsPerPage : m_TotalOptions;
+        int optionsCount = (m_Selection.total > maxOptionsPerPage) ? maxOptionsPerPage : m_Selection.total;
         if (!optionsCount)
             return;
 
@@ -357,7 +346,7 @@ void Menu::UpdateHighlightBarPos()
 {
     if (m_StateOpened)
     {
-        float pos = (m_CurrentOption - m_CurrentIndex) * sizeText;
+        float pos = (m_Selection.option - m_Selection.index) * sizeText;
 
         if (!g_Timer.IsAlreadyPresent(&m_HighlightBarPosY))
             g_Timer.Add(&m_HighlightBarPosY, pos, 200);
@@ -390,7 +379,6 @@ void Menu::UpdateUI()
 
    if (m_OpacityGlobal > 0.0)
    {
-      m_TotalOptions = m_PrintingOption;
       m_PrintingOption = 0;
       m_DescriptionText.clear();
 
@@ -398,12 +386,7 @@ void Menu::UpdateUI()
        * Keep the selection inside the list when it shrinks underneath us, otherwise deleting
        * the last entry leaves the highlight past the end and nothing is ever hovered again.
        */
-      if ((m_TotalOptions > 0) && (m_CurrentOption > m_TotalOptions))
-      {
-         m_CurrentOption = m_TotalOptions;
-         if (m_CurrentIndex > m_CurrentOption)
-            m_CurrentIndex = m_CurrentOption;
-      }
+      Clamp(m_Selection, maxOptionsPerPage);
 
       UpdatePosition();
       UpdateBackgroundSize();
@@ -420,6 +403,9 @@ void Menu::UpdateUI()
       // Display current menu
       if (m_CurrentMenu != nullptr)
          m_CurrentMenu();
+
+      /* From the build that just ran, not the one before it: a stale count wraps to the wrong row. */
+      m_Selection.total = m_PrintingOption;
 
       // Enter selected submenu
       if (m_SubmenuDelay != nullptr)
@@ -533,7 +519,7 @@ void Menu::DrawFooter()
 
 	// Current option counter
 	g_Renderer.Text(
-		to_wstring(m_CurrentOption) + L" / " + to_wstring(m_TotalOptions),
+		to_wstring(m_Selection.option) + L" / " + to_wstring(m_Selection.total),
 		paf::vec2(position.x, position.y - m_SizeBackground / 2 - (sizeText / 1.02) / 2),
 		sizeText / 1.2,
 		paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
@@ -575,12 +561,12 @@ void Menu::DrawDescription()
 
 void Menu::DrawMenuOption(const std::wstring& text)
 {
-    if ((m_PrintingOption >= m_CurrentIndex) && (m_PrintingOption < (m_CurrentIndex + maxOptionsPerPage)))
+    if ((m_PrintingOption >= m_Selection.index) && (m_PrintingOption < (m_Selection.index + maxOptionsPerPage)))
     {
         g_Renderer.Text(
             text,
             paf::vec2(position.x - sizeWidth / 2 + m_SizeBackgroundSpace / 2,
-                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_CurrentIndex) * sizeText - sizeText / 2),
+                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_Selection.index) * sizeText - sizeText / 2),
             sizeText,
             paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
             Renderer::Left,
@@ -590,11 +576,11 @@ void Menu::DrawMenuOption(const std::wstring& text)
 
 void Menu::DrawMenuToggle(bool var)
 {
-    if ((m_PrintingOption >= m_CurrentIndex) && (m_PrintingOption < (m_CurrentIndex + maxOptionsPerPage)))
+    if ((m_PrintingOption >= m_Selection.index) && (m_PrintingOption < (m_Selection.index + maxOptionsPerPage)))
     {
         g_Renderer.Rectangle(
             paf::vec2(position.x + sizeWidth / 2 - m_SizeBackgroundSpace / 2,
-                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_CurrentIndex) * sizeText - sizeText / 2),
+                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_Selection.index) * sizeText - sizeText / 2),
             paf::vec2(sizeText * 0.7, sizeText * 0.7),
             var ? paf::vec4(colorToggleOn.r, colorToggleOn.g, colorToggleOn.b, m_OpacityText)
             : paf::vec4(colorToggleOff.r, colorToggleOff.g, colorToggleOff.b, m_OpacityText),
@@ -606,14 +592,14 @@ void Menu::DrawMenuToggle(bool var)
 
 void Menu::DrawMenuSlider(const std::wstring& text, float progress)
 {
-    if ((m_PrintingOption >= m_CurrentIndex) && (m_PrintingOption < (m_CurrentIndex + maxOptionsPerPage)))
+    if ((m_PrintingOption >= m_Selection.index) && (m_PrintingOption < (m_Selection.index + maxOptionsPerPage)))
     {
         float sliderWidth = sizeWidth / 4;
 
         // Bar
         g_Renderer.Rectangle(
             paf::vec2(position.x + sizeWidth / 2 - m_SizeBackgroundSpace / 2 - sliderWidth,
-                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_CurrentIndex) * sizeText - sizeText / 2),
+                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_Selection.index) * sizeText - sizeText / 2),
             paf::vec2(sliderWidth, 6),
             paf::vec4(0.15, 0.15, 0.15, m_OpacityText),
             Renderer::Left,
@@ -623,7 +609,7 @@ void Menu::DrawMenuSlider(const std::wstring& text, float progress)
         // Filled bar
         g_Renderer.Rectangle(
             paf::vec2(position.x + sizeWidth / 2 - m_SizeBackgroundSpace / 2 - sliderWidth,
-                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_CurrentIndex) * sizeText - sizeText / 2),
+                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_Selection.index) * sizeText - sizeText / 2),
             paf::vec2((sliderWidth * progress), 6),
             paf::vec4(colorFillerBar.r, colorFillerBar.g, colorFillerBar.b, m_OpacityText),
             Renderer::Left,
@@ -633,7 +619,7 @@ void Menu::DrawMenuSlider(const std::wstring& text, float progress)
         // Cursor
         g_Renderer.Rectangle(
             paf::vec2(position.x + sizeWidth / 2 - m_SizeBackgroundSpace / 2 - sliderWidth + (sliderWidth * progress),
-                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_CurrentIndex) * sizeText - sizeText / 2),
+                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_Selection.index) * sizeText - sizeText / 2),
             paf::vec2(sizeText * 0.7, sizeText * 0.7),
             paf::vec4(colorFillerCursor.r, colorFillerCursor.g, colorFillerCursor.b, m_OpacityText),
             Renderer::Centered,
@@ -644,12 +630,12 @@ void Menu::DrawMenuSlider(const std::wstring& text, float progress)
 
 void Menu::DrawMenuStringOption(const std::wstring& item)
 {
-    if ((m_PrintingOption >= m_CurrentIndex) && (m_PrintingOption < (m_CurrentIndex + maxOptionsPerPage)))
+    if ((m_PrintingOption >= m_Selection.index) && (m_PrintingOption < (m_Selection.index + maxOptionsPerPage)))
     {
         g_Renderer.Text(
             item,
             paf::vec2(position.x + sizeWidth / 2 - m_SizeBackgroundSpace / 2,
-                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_CurrentIndex) * sizeText - sizeText / 2),
+                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_Selection.index) * sizeText - sizeText / 2),
             sizeText,
             paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
             Renderer::Right,
@@ -718,13 +704,13 @@ Menu& Menu::Toggle(bool& var, Function onEnable, Function onDisable)
 
 Menu& Menu::RightText(const std::wstring& text)
 {
-    if ((m_PrintingOption >= m_CurrentIndex) && (m_PrintingOption < (m_CurrentIndex + maxOptionsPerPage)))
+    if ((m_PrintingOption >= m_Selection.index) && (m_PrintingOption < (m_Selection.index + maxOptionsPerPage)))
     {
         g_Renderer.Text(
             text,
             paf::vec2(
                 position.x + sizeWidth / 2 - m_SizeBackgroundSpace / 2,
-                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_CurrentIndex) * sizeText - sizeText / 2),
+                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_Selection.index) * sizeText - sizeText / 2),
             sizeText,
             paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
             Renderer::Right,
@@ -776,7 +762,7 @@ Menu& Menu::Strings(const std::vector<std::wstring>& items, int& index)
             L"error (" + to_wstring(index) + L")",
             paf::vec2(
                 position.x + sizeWidth / 2 - m_SizeBackgroundSpace / 2,
-                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_CurrentIndex) * sizeText - sizeText / 2),
+                position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_Selection.index) * sizeText - sizeText / 2),
             sizeText,
             paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
             Renderer::Right,

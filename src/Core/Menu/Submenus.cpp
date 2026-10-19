@@ -4,12 +4,7 @@
 #include "../Network.hpp"
 #include "../InputUi.hpp"
 #include "../Version.hpp"   // QDNSM_VERSION_ASCII
-#include <sys/ppu_thread.h>
 #include <vsh/stdc.hpp>   // vsh::snprintf
-
-extern "C" {
-	#include "../../Utils/xregistry.h"
-}
 
 /*
  * All user input goes through our own InputUi, drawn with g_Renderer. The PS3 sysutil
@@ -74,7 +69,7 @@ void ApplyDnsServer(size_t index)
 	 *       connected." The link could be dropped but never brought back from here, so the user
 	 *       was left worse off than before pressing anything.
 	 *
-	 * Neither is recoverable from inside the module. Both are in TODO.md with the reasoning.
+	 * Neither is recoverable from inside the module.
 	 */
 
 	/* WideToAscii first because DnsServerEntry::name is a std::wstring, and the notification
@@ -87,7 +82,7 @@ void ApplyDnsServer(size_t index)
 	 * The console reads its DNS settings when it builds a connection, so the new servers do not
 	 * take effect until one is built. That is the one thing qDNSm has not managed to do for the
 	 * user, and a long investigation into the network stack's internals failed to find a way - see
-	 * TODO.md, and in particular the two functions documented there that can break a console's
+	 * the note at the top of Network.cpp, which covers the two calls that can break a console's
 	 * networking outright.
 	 *
 	 * So the message gives the exact gesture. Both halves matter: the console has to take the link
@@ -425,14 +420,6 @@ void OptionsSubmenu()
 	{
 		BeginRestoreDefaults();
 	});
-
-#ifdef ENABLE_GLYPH_BROWSER
-	/* Temporary tool for finding icon codepoints. Off by default. */
-	g_Menu.Option(L"Glyph browser").Action([]
-	{
-		g_InputUi.BeginGlyphs(0xF000);
-	});
-#endif
 }
 
 void MainSubmenu()

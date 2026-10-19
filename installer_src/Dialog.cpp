@@ -2,11 +2,9 @@
 
 #if defined(QDNSM_PSL1GHT)
 
-#include <stdio.h>
 #include <string.h>
 #include <malloc.h>
 #include <unistd.h>
-#include <sys/stat.h>
 
 #include <ppu-lv2.h>
 #include <rsx/gcm_sys.h>
@@ -30,25 +28,7 @@ namespace
     const u32 kHostSize      = 8 * 1024 * 1024;
 
 
-    /* SysUtil needs a surface to draw on even with opaque dialogs - with RSX
-     * skipped entirely the dialogs are created (audibly) but nothing appears.
-     *
-     * What it must not be is a single surface: one buffer tears, because the GPU
-     * scans it while SysUtil composites into it. See InitDisplayBuffer.
-     *
-     * False skips the whole video bring-up. It works for the audio path and the
-     * non-interactive install, but shows no dialog, so it is not the shipping
-     * configuration. */
-    const bool kOwnDisplay = true;
 
-    /* Loop iterations between presentations. The wait loop sleeps ~1ms per
-     * iteration, so 100 is roughly 10 frames a second.
-     *
-     * SysUtil composites its dialog into our framebuffer, and we present that
-     * buffer. At 60fps we were scanning out frames caught mid-composite, which
-     * is what flickers the screen and saturates the dialog's text. Slowing the
-     * presentation reduces how often a half-composited surface reaches the
-     * display, while still feeding the pipeline often enough not to wedge. */
     /* A dialog that is never answered must not be able to hang the console. */
     const u32 kDialogTimeoutMs = 120000;
 
@@ -162,9 +142,6 @@ namespace
          * button press. Never throttle this or input stops arriving. */
         sysUtilCheckCallback();
 
-        if (!kOwnDisplay)
-            return;
-
         if (!g_dialogOpen)
             return;          /* nothing open: do not compete with the XMB */
 
@@ -239,7 +216,7 @@ namespace
         /* Repainting is now belt-and-braces rather than load-bearing, but it is
          * cheap and keeps the background correct on any dialog that does end up
          * transparent. */
-        if (kOwnDisplay && g_displayBuf[0] != NULL)
+        if (g_displayBuf[0] != NULL)
             ClearDisplay();
 
         if (msgDialogOpen2((msgType)type, text, OnButton, NULL, NULL) == 0)
@@ -273,15 +250,6 @@ namespace Dialog
     {
         if (g_ready)
             return true;
-
-        if (!kOwnDisplay)
-        {
-            ioPadInit(7);
-            sysUtilRegisterCallback(SYSUTIL_EVENT_SLOT0, OnSysUtilEvent, NULL);
-
-            g_ready = true;
-            return true;
-        }
 
         videoState state;
         videoConfiguration config;
@@ -352,12 +320,6 @@ namespace Dialog
 
     void VideoFinish()
     {
-        if (!kOwnDisplay)
-        {
-            g_ready = false;
-            return;
-        }
-
         sysUtilUnregisterCallback(SYSUTIL_EVENT_SLOT0);
         ioPadEnd();
 
@@ -392,9 +354,9 @@ namespace Dialog
         if (!Available())
             return Cancelled;
 
-        /* MSG_DIALOG_DEFAULT_CURSOR_NO is part of apollo's yes/no type. */
+        /* No default-cursor flag: the cursor starts on Yes, which is the first button. */
         if (!OpenDialog(MSG_DIALOG_NORMAL |
-                        MSG_DIALOG_BTN_TYPE_YESNO | MSG_DIALOG_DEFAULT_CURSOR_NO,
+                        MSG_DIALOG_BTN_TYPE_YESNO,
                         "You will be managing qDNSm with this app.\n\n"
                         "Choose an option:\n\n"
                         "Yes  =  Install\n"
@@ -470,7 +432,7 @@ namespace Dialog
             return false;
 
         if (!OpenDialog(MSG_DIALOG_NORMAL |
-                        MSG_DIALOG_BTN_TYPE_YESNO | MSG_DIALOG_DEFAULT_CURSOR_NO,
+                        MSG_DIALOG_BTN_TYPE_YESNO,
                         text))
             return false;
 

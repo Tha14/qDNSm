@@ -212,7 +212,7 @@ def verify_image(elf_bytes, stage):
             'conventional PS3 executable base, and set e_entry to it.\n'
             '       This is a link-layout problem, not a signing one. The SNC '
             'link needed -mno-prxfixup -mlv2-stub plus -Wl,-T pointing at '
-            'ps3-exec.ld; both are gone now (TODO.md item 19), so a wrong e_entry '
+            'ps3-exec.ld; both are gone now, so a wrong e_entry '
             'here means this ELF was not built by installer_src/Makefile.'
             % (stage, e_entry, EXEC_BASE))
 

@@ -81,12 +81,8 @@ typedef sysFSStat  CellFsStat;
  */
 #define CELL_FS_O_RDONLY   SYS_O_RDONLY
 #define CELL_FS_O_WRONLY   SYS_O_WRONLY
-#define CELL_FS_O_RDWR     SYS_O_RDWR
-#define CELL_FS_O_ACCMODE  SYS_O_ACCMODE
 #define CELL_FS_O_CREAT    SYS_O_CREAT
-#define CELL_FS_O_EXCL     SYS_O_EXCL
 #define CELL_FS_O_TRUNC    SYS_O_TRUNC
-#define CELL_FS_O_APPEND   SYS_O_APPEND
 
 /*
  * sysFSStat::st_mode carries the same S_IF* bits as any other stat(), so the

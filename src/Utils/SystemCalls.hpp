@@ -6,40 +6,24 @@
 #include <sys/timer.h> // sys_timer_sleep
 
 #define SC_PPU_THREAD_EXIT                      41
-#define SC_SYS_POWER                            379
 #define SC_GET_TEMPERATURE                      383
-#define SC_SET_FAN_POLICY                       389
-#define SC_RING_BUZZER                          392
-#define SC_GET_FAN_POLICY                       409
-#define SC_STORAGE_OPEN                         600
-#define SC_STORAGE_CLOSE                        601
 #define SC_STORAGE_INSERT_EJECT                 616
 #define SC_FS_LINK                              810
-#define SC_UPDATE_MANAGER_IF                    863
-#define SC_APPLIANCE_INFO_MANAGER               867
 
 
 #define FLASH_DEVICE_NOR                    0x0100000000000004ULL
 #define FLASH_DEVICE_NAND                   0x0100000000000001ULL
 #define FLASH_FLAGS							0x22ULL
 
-#define UPDATE_MGR_PACKET_ID_READ_EPROM		0x600B
-#define UPDATE_MGR_PACKET_ID_WRITE_EPROM	0x600C
-#define RECOVER_MODE_FLAG_OFFSET			0x48C61
 #define EPROM_FSELF_FLAG_OFFSET				0x48C06
 #define EPROM_DEBUG_OFFSET					0x48C08
 
-#define SYS_SOFT_REBOOT 				0x0200
-#define SYS_HARD_REBOOT					0x1200
-#define SYS_REBOOT						0x8201 /*load LPAR id 1*/
-#define SYS_SHUTDOWN					0x1100
 
 #define SYS_NET_EURUS_POST_COMMAND		726
 #define CMD_GET_MAC_ADDRESS				0x103f
 
 // https://www.psdevwiki.com/ps3/AIM_Manager
 #define PACKET_ID_GET_DEVICE_TYPE 0x19002
-#define PACKET_ID_GET_DEVICE_ID 0x19003
 #define PACKET_ID_GET_PSCODE 0x19004
 #define PACKET_ID_GET_OPEN_PSID 0x19005
 #define PACKET_ID_UNKNOWN 0x19006
@@ -168,39 +152,6 @@
 
 #define PS3MAPI_FIND_FREE_SLOT                     NULL
 
-enum class ShutdownFlag : uint16_t
-{
-    lpar_id_1 = (1 << 0),
-    lpar_id_2 = (1 << 1),
-    lpar_id_3 = (1 << 2),
-    sys_shutdown = (1 << 8),
-    sys_reboot = (1 << 9),
-    sys_hard_shutdown = (1 << 12),
-    sys_load_lpar = (1 << 15)
-};
-
-enum class LedColor : uint8_t
-{
-    led_green = 1,
-    led_red = 2
-};
-
-enum class LedAction : uint8_t
-{
-    led_action_off,
-    led_action_on,
-    led_action_blink_fast,
-    led_action_blink_slow
-};
-
-enum class RingBuzzerAction : uint16_t
-{
-    ring_buzzer_single = 0x0006,
-    ring_buzzer_double = 0x0036,
-    ring_buzzer_triple = 0x01B6,
-    ring_buzzer_continuous = 0x0FFF
-};
-
 enum class ConsoleType
 {
     CEX = 1,
@@ -308,24 +259,6 @@ typedef struct
    // ...
 } thread_t;
 
-typedef struct
-{
-   uint8_t     name[7];
-   uint8_t     unknown01;
-   uint32_t    unknown02; // random nr?
-   uint32_t    zero01;
-   uint32_t    unknown03; // 0x28?
-   uint32_t    unknown04; // 0xd000e990?
-   uint8_t     zero02[16];
-   uint64_t    total_sectors;
-   uint32_t    sector_size;
-   uint32_t    unknown05;
-   uint8_t     writable;
-   uint8_t     unknown06[3];
-   uint32_t    unknown07;
-} __attribute__((packed)) device_info_t;
-
-
 int sys_map_path(char** paths, char** new_paths, int num);
 int cobra_load_vsh_plugin(unsigned int slot, char* path, void* arg, uint32_t arg_size);
 int cobra_unload_vsh_plugin(unsigned int slot);
@@ -387,12 +320,6 @@ uint64_t lv2_lv1_call(uint64_t syscallnum, uint64_t arg1, uint64_t arg2, uint64_
 uint64_t lv2_func_call(uint64_t addr, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5, uint64_t arg6, uint64_t arg7);
 int sys_dbg_read_process_memory(sys_pid_t pid, void* destination, void* source, size_t size);
 int sys_dbg_write_process_memory(sys_pid_t pid, void* destination, const void* source, size_t size);
-int sys_storage_get_device_info(uint64_t device, device_info_t* device_info);
-int sys_storage_open(uint64_t id, int* fd);
-int sys_storage_close(int fd);
-int sys_storage_read(int fd, uint32_t start_sector, uint32_t sectors, uint8_t* bounce_buf, uint32_t* sectors_read);
-int sys_storage_read_with_flags(int fd, uint32_t start_sector, uint32_t sectors, uint8_t* bounce_buf, uint32_t* sectors_read, uint32_t flags);
-int sys_storage_write(int fd, uint64_t start_sector, uint64_t sectors, uint8_t* buf, uint32_t* sectors_written, uint64_t flags);
 int sys_storage_get_cache_of_flash_ext_flag(uint8_t* flag);
 bool is_nor();
 int lv2_get_platform_info(platform_info_t* info);
@@ -406,38 +333,8 @@ bool IsConsoleCobra();
 uint16_t GetPayloadVersion();
 bool DoesConsoleHaveCCAPI();
 bool DoesConsoleHaveWebman();
-int update_mgr_write_eprom(uint64_t flag_offset, uint64_t value);
-int update_mgr_read_eprom(uint64_t* flag_offset, uint64_t value);
-int set_recovery_mode();
 int sys_net_eurus_etherAddr(uint8_t* etherAddr);
-int sys_ss_appliance_info_manager(uint32_t packet_id, uint8_t* out);
-void get_idps_info_manager();
-int GetGameID(char titleId[]);
-int ps3_led(uint64_t color, uint64_t mode);
-int ring_buzzer_simple(void);
-int ring_buzzer_double(void);
-int ring_buzzer_triple(void);
-CellFsErrno sys_fs_write(int fd, const void* buf, uint64_t nbytes, uint64_t* nwrite);
-CellFsErrno sys_fs_close(int fd);
-CellFsErrno sys_fs_rename(const char* from, const char* to);
-CellFsErrno sys_fs_chmod(const char* path, CellFsMode mode);
-int sys_fs_chown(const char* path, int uid, int gid);
-int sys_fs_mount(const char* device_path, const char* device_name, const char* file_system);
-int sys_fs_unmount(const char* device_path);
-void del_turnoff(uint8_t beeps);
-int ps3_shutdown(void);
-int ps3_hard_restart(void);
-int ps3_quick_restart(void);
-int ps3_soft_restart(void);
-void ps3_exit_xmb();
-void enable_dev_blind();
-void disable_dev_blind();
 int sys_dbg_get_thread_list(sys_pid_t pid, sys_ppu_thread_t* ids, uint64_t* ids_num, uint64_t* all_ids_num);
-int sys_game_get_temperature(uint32_t _dev, uint32_t* temperature);
-int get_temperature_celcius(uint32_t& cpu_temp, uint32_t& rsx_temp);
-int sys_sm_set_fan_policy(uint8_t arg0, uint8_t arg1, uint8_t arg2);
-int sys_sm_get_fan_policy(uint8_t id, uint8_t* st, uint8_t* mode, uint8_t* speed, uint8_t* unknown);
-void ps3_set_recovery_mode();
 int _sys_prx_unload_module(sys_prx_id_t id, sys_prx_flags_t flags, const sys_prx_unload_module_option_t* pOpt);
 int _sys_prx_stop_module(sys_prx_id_t id, size_t args, void* argp, int* modres, sys_prx_flags_t flags, sys_prx_stop_module_option_t* pOpt);
 sys_prx_id_t _sys_prx_get_module_id_by_name(const char* name, sys_prx_flags_t flags, sys_prx_get_module_id_by_name_option_t* pOpt);

@@ -7,6 +7,7 @@
 #include "Core/Input.hpp"
 #include "Core/Renderer.hpp"
 #include "Core/Helpers.hpp"
+#include "Scrolling.hpp"
 #include <functional>
 
 using Function = void(*)();
@@ -183,18 +184,17 @@ private:
    static const unsigned maxSubmenuLevels = 20;
    static const unsigned maxOptionsPerPage = 5;
    Function m_LastSubmenu[maxSubmenuLevels]{};
-   int m_LastOption[maxSubmenuLevels]{};
-   int m_LastIndex[maxSubmenuLevels]{};
+   MenuSelection m_LastSelection[maxSubmenuLevels]{};
 
    int m_SavedSubmenuLevel = 0;
-   int m_SavedCurrentOption = 1;
-   int m_SavedCurrentIndex = 1;
+   MenuSelection m_SavedSelection{};
 
    int m_SubmenuLevel = 0;
    int m_PrintingOption = 0;
-   int m_TotalOptions = 0;
-   int m_CurrentOption = 0;
-   int m_CurrentIndex = 0;
+
+   /* Carries its own row count: it used to be one global read from the previous frame, which
+    * after a submenu switch described the wrong menu. */
+   MenuSelection m_Selection{};
 
    float m_OpacityGlobal = 0;
    float m_OpacityBackground = 0;

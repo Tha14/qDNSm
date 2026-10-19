@@ -53,13 +53,12 @@ The payload `qDNSm.sprx` is copied from `../bin/Release-PS3/qDNSm.sprx`, so buil
 plugin first — it is a separate, SNC/Visual Studio project (`qDNSm.sln`).
 
 `APPID` and `CONTENTID` are set in the `Makefile` and must agree with each other and
-with the `PARAM.SFO` the build generates. See TODO.md item 3.
+with the `PARAM.SFO` the build generates.
 
 ## Before changing anything here
 
-**Read TODO.md's "Installer EBOOT" section first.** It records the toolchain and RSX
-facts that each cost a console reboot to establish, including several that look like
-obvious bugs but are not:
+The toolchain and RSX facts below each cost a console reboot to establish, and several
+look like obvious bugs but are not:
 
 - a **single** display buffer tears; more than one is required
 - the flip sequence must match `vendor/PSL1GHT/samples/sys/save` exactly

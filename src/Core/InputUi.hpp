@@ -4,12 +4,6 @@
 #include "Renderer.hpp"
 
 /*
- * Define ENABLE_GLYPH_BROWSER to build the temporary icon-codepoint browser.
- * It is deliberately left undefined so none of that code compiles by default.
- */
-// #define ENABLE_GLYPH_BROWSER 1
-
-/*
  * A self-contained on-screen input UI: free text, a 10-key numeric pad, and a Yes/No
  * confirm. Written because the PS3 sysutil dialogs do not work from this module:
  * cellMsgDialogOpen2 never renders, and cellOskDialogLoadAsync needs a memory container
@@ -33,9 +27,6 @@ public:
 		 * which is a lie when there is nothing to decide.
 		 */
 		Mode_Info
-#ifdef ENABLE_GLYPH_BROWSER
-		, Mode_Glyphs
-#endif
 	};
 
 	enum Result
@@ -82,16 +73,6 @@ public:
 		const std::wstring& creditLabel = L"", const std::wstring& credit = L"");
 
 
-#ifdef ENABLE_GLYPH_BROWSER
-	/*
-	 * Browses the system font's Private Use Area so an icon codepoint can be picked by eye.
-	 * The SDK headers document only the controller-button glyphs (U+F880-U+F894) and there
-	 * is no charmap for the rest, so this is the only way to find one. Not compiled unless
-	 * ENABLE_GLYPH_BROWSER is defined.
-	 */
-	void BeginGlyphs(unsigned int startCode);
-#endif
-
 	/* Reads input for this frame. Call first, then Draw(). */
 	void Update();
 
@@ -120,9 +101,6 @@ private:
 	void DrawNumericPad();
 	void DrawConfirm();
 	void DrawInfo();
-#ifdef ENABLE_GLYPH_BROWSER
-	void DrawGlyphBrowser();
-#endif
 
 	Mode m_Mode{};
 	Result m_Result{ Result_None };
@@ -145,11 +123,6 @@ private:
 	/* Sticky letter case for the text grid. The layout is authored in uppercase, so
 	 * lowercase simply folds letters on the way in. */
 	bool m_UpperCase{ true };
-
-#ifdef ENABLE_GLYPH_BROWSER
-	int m_GlyphPage{};
-	int m_GlyphIndex{};
-#endif
 
 	/*
 	 * The renderer's origin is the screen centre, not the top-left, AND y grows UPWARD:

@@ -1,8 +1,5 @@
-#include <cellstatus.h>
 #include <sys/prx.h>
 #include <sys/ppu_thread.h>
-#include <sys/timer.h>
-#include <cell/pad.h>
 #include <vsh/newDelete.hpp>
 #include "Utils/SystemCalls.hpp"
 #include "Utils/Timers.hpp"

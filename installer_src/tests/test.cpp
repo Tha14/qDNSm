@@ -2,7 +2,6 @@
 // compiled unmodified against an in-memory filesystem, so this exercises the
 // code that actually ships - not a reimplementation of it.
 #include <cstdio>
-#include <cstring>
 #include <string>
 #include <vector>
 

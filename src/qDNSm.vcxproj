@@ -200,6 +200,7 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
     <ClInclude Include="Core\Input.hpp" />
     <ClInclude Include="Core\Renderer.hpp" />
     <ClInclude Include="Core\Menu\Base.hpp" />
+    <ClInclude Include="Core\Menu\Scrolling.hpp" />
     <ClInclude Include="Core\Menu\Submenus.hpp" />
     <ClInclude Include="Core\Helpers.hpp" />
     <ClInclude Include="Core\Hooks.hpp" />

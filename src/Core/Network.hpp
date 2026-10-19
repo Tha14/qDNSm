@@ -8,8 +8,7 @@
  * Two functions, because that is all that survived the investigation. Everything else this header
  * once declared - a device-config reader, a resolver accessor, a lease reader, a periodic sampler,
  * a netctl worker thread, and a sweep across netctl_main's undocumented exports - was removed once
- * it was measured and found to be either useless or actively harmful. TODO.md has the record of what
- * each one did and why it went.
+ * it was measured and found to be either useless or actively harmful.
  */
 
 /*

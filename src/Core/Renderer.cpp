@@ -186,13 +186,6 @@ void Renderer::ViewportScale(paf::vec2& vec)
     vec.y *= currentAspectRatio / myAspectRatio;
 }
 
-void Renderer::ViewportScaleHorizontal(float& value)
-{
-    paf::vec2 vec{ value, 0 };
-    ViewportScale(vec);
-    value = vec.x;
-}
-
 void Renderer::ViewportScaleVertical(float& value)
 {
     paf::vec2 vec{ 0, value };
@@ -228,22 +221,6 @@ void Renderer::Rectangle(paf::vec2 position, paf::vec2 size, paf::vec4 color, Al
     }
 }
 
-void Renderer::Gradient(paf::vec2 position, paf::vec2 size, paf::vec4 colorLeft, paf::vec4 colorRight, Align horizontalAlign, Align verticalAlign)
-{
-    Rectangle(position, size, colorLeft, horizontalAlign, verticalAlign, "tex_optionmenu_game");
-    Rectangle(position, size, colorRight, horizontalAlign, verticalAlign, "tex_optionmenu_game", 180);
-}
-
-void Renderer::Line(paf::vec2 from, paf::vec2 to, float thickness, paf::vec4 color)
-{
-    float width = to.x - from.x,
-        height = to.y - from.y,
-        hypotenuse = vsh::sqrtf(width * width + height * height),
-        angle = vsh::atan2f(height, width);
-
-    Rectangle(from, paf::vec2(hypotenuse + thickness / 2, thickness), color, Left, Top, nullptr, angle, true);
-}
-
 void Renderer::Text(std::wstring const& text, paf::vec2 position, float height, paf::vec4 color, Align horizontalAlign, Align verticalAlign, float angle, bool drawShadow, GlyphSet glyphSet)
 {
     if (!m_CanDraw || color.a <= 0.0)
@@ -271,33 +248,5 @@ void Renderer::Text(std::wstring const& text, paf::vec2 position, float height, 
         label->SetStyle(paf::PhWidget::TextAlignment, int(horizontalAlign));
         label->SetText(text, static_cast<int>(glyphSet));
         label->RefreshText();
-    }
-}
-
-void Renderer::RectangleOverText(paf::vec2 position, paf::vec2 size, paf::vec4 color, Align horizontalAlign, Align verticalAlign, const char* systemTexture, float angle, bool useRadian)
-{
-    if (!m_CanDraw || color.a <= 0.0)
-        return;
-
-    paf::PhPlane* plane = m_PlaneOnTop;
-
-    if (plane)
-    {
-        //color /= 255;
-
-        ViewportScale(position);
-        ViewportScale(size);
-
-        plane->SetPosition(position)
-            .SetSize(size)
-            .SetColor(color)
-            .SetRotation(angle, useRadian)
-            .SetStyle(paf::PhWidget::Anchor, int(horizontalAlign | verticalAlign));
-
-        paf::SurfacePtr pTexture = paf::SurfacePtr();
-        if (systemTexture)
-            pTexture = g_Helpers.m_SystemPlugin->GetTexture(systemTexture);
-
-        plane->SetTexture(pTexture, 0);
     }
 }

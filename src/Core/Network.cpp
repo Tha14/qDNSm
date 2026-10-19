@@ -34,8 +34,7 @@ extern "C" {
  * it builds a connection, and nothing reachable from a third-party SPRX can make it do that. The
  * XMB's own "Test Network Connection" does, and the user has to press it.
  *
- * Everything that was tried is written up in TODO.md, including the two things that cost this
- * project a console reboot each. The short version, so nobody re-treads it:
+ * Two of the attempts cost this project a console reboot each, so nobody re-treads them:
  *
  *   - netctl_main exports must be called through their linked stubs. opd_s is {func, toc}, and
  *     casting func and calling it produced calls that neither faulted nor returned, which read as a

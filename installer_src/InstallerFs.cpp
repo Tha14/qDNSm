@@ -1,7 +1,6 @@
 #include "InstallerFs.hpp"
 
 #include "TargetCompat.hpp"
-#include <string.h>
 
 namespace
 {

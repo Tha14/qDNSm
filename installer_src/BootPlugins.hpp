@@ -38,8 +38,7 @@ namespace BootPlugins
         TooLarge,        /* larger than the fixed buffer, so it is left alone */
         StageFailed,     /* could not write the staged copy */
         BackupFailed,    /* could not write the backup */
-        WriteFailed,     /* the real file could not be written */
-        VerifyFailed     /* written bytes did not match on read-back */
+        WriteFailed      /* the real file could not be written */
     };
 
     struct State
