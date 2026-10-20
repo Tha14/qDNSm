@@ -165,9 +165,9 @@ int main()
                     "/dev_hdd0/plugins/Irisman.sprx\n");
         BootPlugins::Result r = BootPlugins::Unregister(kBoot);
         CheckBool("result Ok", r == BootPlugins::Ok, true);
-        Check("only our line removed, order of the rest kept",
+        Check("only our line removed, order of the rest kept, no trailing newline",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/Irisman.sprx\n");
+              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/Irisman.sprx");
     }
     {
         FakeFs::Clear();
@@ -175,9 +175,9 @@ int main()
                     "/dev_hdd0/plugins/webMAN.sprx\r\n"
                     "/dev_hdd0/plugins/qDNSm.sprx\r\n");
         BootPlugins::Unregister(kBoot);
-        Check("CRLF preserved when removing",
+        Check("CRLF kept line written without its terminator",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\r\n");
+              "/dev_hdd0/plugins/webMAN.sprx");
     }
     {
         FakeFs::Clear();
@@ -203,21 +203,91 @@ int main()
         BootPlugins::Unregister(kBoot);
         Check("indented and alternate-path entries both removed",
               FakeFs::Get(kBoot),
-              "# keep me\n/dev_hdd0/plugins/webMAN.sprx\n");
+              "# keep me\n/dev_hdd0/plugins/webMAN.sprx");
     }
     {
         FakeFs::Clear();
         FakeFs::Put(kBoot, "/dev_hdd0/plugins/webMAN.sprx\n   /dev_hdd0/plugins/qDNSm.sprx");
         BootPlugins::Unregister(kBoot);
-        Check("removal does not synthesise a newline on the kept last line",
-              FakeFs::Get(kBoot), "/dev_hdd0/plugins/webMAN.sprx\n");
+        Check("removal takes the kept last line's terminator too",
+              FakeFs::Get(kBoot), "/dev_hdd0/plugins/webMAN.sprx");
     }
     {
         FakeFs::Clear();
         FakeFs::Put(kBoot, "/dev_hdd0/plugins/qDNSm2.sprx\n/dev_hdd0/plugins/qDNSm.sprx\n");
         BootPlugins::Unregister(kBoot);
         Check("similarly named plugin NOT removed",
-              FakeFs::Get(kBoot), "/dev_hdd0/plugins/qDNSm2.sprx\n");
+              FakeFs::Get(kBoot), "/dev_hdd0/plugins/qDNSm2.sprx");
+    }
+
+    printf("\n-- unregister: blank lines --\n");
+    {
+        FakeFs::Clear();
+        FakeFs::Put(kBoot,
+                    "/dev_hdd0/plugins/webMAN.sprx\n"
+                    "\n"
+                    "\n"
+                    "/dev_hdd0/plugins/qDNSm.sprx\n"
+                    "/dev_hdd0/plugins/Irisman.sprx\n");
+        BootPlugins::Unregister(kBoot);
+        Check("blank lines around our entry removed",
+              FakeFs::Get(kBoot),
+              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/Irisman.sprx");
+    }
+    {
+        FakeFs::Clear();
+        FakeFs::Put(kBoot, "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx\n\n");
+        BootPlugins::Unregister(kBoot);
+        Check("trailing blank removed, bottom bare",
+              FakeFs::Get(kBoot), "/dev_hdd0/plugins/webMAN.sprx");
+    }
+    {
+        FakeFs::Clear();
+        FakeFs::Put(kBoot,
+                    "/dev_hdd0/plugins/webMAN.sprx\n"
+                    "   \n"
+                    "\t\n"
+                    "/dev_hdd0/plugins/qDNSm.sprx\n");
+        BootPlugins::Unregister(kBoot);
+        Check("whitespace-only lines count as empty",
+              FakeFs::Get(kBoot), "/dev_hdd0/plugins/webMAN.sprx");
+    }
+    {
+        FakeFs::Clear();
+        FakeFs::Put(kBoot, "/dev_hdd0/plugins/webMAN.sprx\r\n\r\n/dev_hdd0/plugins/qDNSm.sprx\r\n");
+        BootPlugins::Unregister(kBoot);
+        Check("CRLF blank removed, CRLF kept line bare",
+              FakeFs::Get(kBoot), "/dev_hdd0/plugins/webMAN.sprx");
+    }
+    {
+        FakeFs::Clear();
+        FakeFs::Put(kBoot, "/dev_hdd0/plugins/qDNSm.sprx\n\n");
+        BootPlugins::Unregister(kBoot);
+        Check("ours and only blanks: left present and empty",
+              FakeFs::Get(kBoot), "");
+        CheckBool("ours and only blanks: file not deleted",
+                  FakeFs::Exists(kBoot), true);
+    }
+    {
+        /* Not-installed must stay a no-op, blank lines and all. */
+        FakeFs::Clear();
+        const std::string untouched = "/dev_hdd0/plugins/webMAN.sprx\n\n/dev_hdd0/plugins/Irisman.sprx\n";
+        FakeFs::Put(kBoot, untouched);
+        BootPlugins::Result r = BootPlugins::Unregister(kBoot);
+        CheckBool("not-installed uninstall: Ok", r == BootPlugins::Ok, true);
+        Check("not-installed uninstall: file byte for byte unchanged",
+              FakeFs::Get(kBoot), untouched);
+    }
+    {
+        /* The comment line survives the blank sweep: it is not empty. */
+        FakeFs::Clear();
+        FakeFs::Put(kBoot,
+                    "# webMAN\n"
+                    "\n"
+                    "/dev_hdd0/plugins/qDNSm.sprx\n");
+        BootPlugins::Unregister(kBoot);
+        Check("comment line kept, blank line gone",
+              FakeFs::Get(kBoot), "# webMAN");
     }
 
     printf("\n-- inspect --\n");

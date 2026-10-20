@@ -161,6 +161,18 @@ namespace
         return nameLen == wantLen && memcmp(g_text + base, kTargetBaseName, wantLen) == 0;
     }
 
+    /*! Content is nothing but whitespace, an empty line included. */
+    bool BlankLine(const Small::LineRef& line)
+    {
+        for (size_t i = line.start; i < line.start + line.len; i++)
+        {
+            if (!IsSpace(g_text[i]))
+                return false;
+        }
+
+        return true;
+    }
+
     int CountQdnsLines(const Small::LineRef* lines, size_t count)
     {
         int found = 0;
@@ -261,11 +273,20 @@ namespace
         if (state.exists && !SplitLines(originalLen, count, usesCrlf))
             return TooLarge;
 
-        /* Keep everything that is not ours. */
+        /* Nothing of ours in the file: no side effects, leave it alone. */
+        const bool removing = (lineToAppend == NULL);
+
+        if (removing && CountQdnsLines(g_lines, count) == 0)
+            return Ok;
+
+        /* Uninstall drops empty lines entirely: none survive the removal. */
         size_t keptCount = 0;
         for (size_t i = 0; i < count; i++)
         {
             if (IsQdnsLine(g_lines[i]))
+                continue;
+
+            if (removing && BlankLine(g_lines[i]))
                 continue;
 
             if (keptCount >= Small::kMaxLines)
@@ -286,25 +307,21 @@ namespace
             if (!Emit(g_updated, out, g_text + line.start, line.len))
                 return TooLarge;
 
-            /* A final line that arrived without a terminator gets one only when
-             * something is appended after it. Without this, appending to a file
-             * with no trailing newline produces
-             * "...last-plugin/dev_hdd0/plugins/qDNSm.sprx" - a single
-             * concatenated line that silently disables both plugins.
-             *
-             * Unregistering never synthesises one: removing an entry must not
-             * change the bytes of the line the user wrote. */
             const bool isFinal = (i + 1 == keptCount);
-            const bool needTerm = isFinal && (line.termLen == 0) && (lineToAppend != NULL);
+            const bool dropTerm = isFinal && (lineToAppend == NULL);
 
-            if (needTerm)
-            {
-                if (!Emit(g_updated, out, term, termLen))
-                    return TooLarge;
-            }
-            else if (line.termLen > 0)
+            /* Register keeps the last line's terminator and adds one if it is
+             * missing, so appending a new entry can never merge two lines into
+             * one broken path. Unregister writes the last line bare instead:
+             * no empty line of any kind survives, not even at the bottom. */
+            if ((line.termLen > 0) && !dropTerm)
             {
                 if (!Emit(g_updated, out, g_text + line.termStart, line.termLen))
+                    return TooLarge;
+            }
+            else if (isFinal && (lineToAppend != NULL) && (line.termLen == 0))
+            {
+                if (!Emit(g_updated, out, term, termLen))
                     return TooLarge;
             }
         }
