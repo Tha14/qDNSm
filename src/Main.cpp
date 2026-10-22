@@ -1,6 +1,7 @@
 #include <sys/prx.h>
 #include <sys/ppu_thread.h>
 #include <vsh/newDelete.hpp>
+#include <vsh/vshmain.hpp>
 #include "Utils/SystemCalls.hpp"
 #include "Utils/Timers.hpp"
 #include "Core/Input.hpp"
@@ -55,15 +56,63 @@ SYS_MODULE_STOP(module_stop);
 
 sys_ppu_thread_t gVshMenuPpuThreadId = SYS_PPU_THREAD_ID_INVALID;
 
+static const uint64_t kHenSettleMs = 3000;
+static const uint64_t kXmbStableMs = 3000;
+static const uint64_t kXmbWaitMaxMs = 30000;
+
+static bool IsXmbReady()
+{
+   return paf::View::Find("explore_plugin") &&
+          paf::View::Find("xmb_plugin") &&
+          paf::View::Find("system_plugin") &&
+          vsh::GetCooperationMode() == vsh::CooperationMode::XMB;
+}
+
+static void WaitForStableXmb()
+{
+   while (!paf::View::Find("explore_plugin"))
+      Sleep(1000);
+
+   /*
+    * Only HEN needs the extra wait. On CFW the explore view is the same
+    * readiness signal the old code used, so behavior there is unchanged.
+    */
+   if (!IsConsoleHen())
+      return;
+
+   const uint64_t start = GetTimeNow();
+   uint64_t readySince = 0;
+
+   while ((GetTimeNow() - start) < kXmbWaitMaxMs)
+   {
+      if (!IsXmbReady())
+      {
+         readySince = 0;
+         Sleep(250);
+         continue;
+      }
+
+      if (readySince == 0)
+         readySince = GetTimeNow();
+
+      const uint64_t now = GetTimeNow();
+
+      if ((now - start) >= kHenSettleMs &&
+          (now - readySince) >= kXmbStableMs)
+      {
+         return;
+      }
+
+      Sleep(250);
+   }
+}
+
 CDECL_BEGIN
 int module_start(unsigned int args, void* argp)
 {
    sys_ppu_thread_create(&gVshMenuPpuThreadId, [](uint64_t arg) -> void
    {
-      // wait for XMB to load
-      do 
-          Sleep(1000); 
-      while (!paf::View::Find("explore_plugin"));
+      WaitForStableXmb();
 
       g_Config.Load();
 

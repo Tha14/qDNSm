@@ -241,6 +241,7 @@ int WriteDeviceNetworkConfig(int device, const std::string& primary, const std::
 
 static volatile bool s_ReconnectRequested = false;
 static volatile bool s_ReconnectRunning = false;
+static bool s_NetctlInitialized = false;
 static char s_ReconnectName[64] = {};
 
 static void ShowReconnectFailure(bool willFail)
@@ -268,6 +269,12 @@ static void NetworkThread(uint64_t)
 		ShowReconnectFailure(true);
 		s_ReconnectRunning = false;
 		sys_ppu_thread_exit(0);
+	}
+
+	if (!s_NetctlInitialized)
+	{
+		Netctl::Init();
+		s_NetctlInitialized = true;
 	}
 
 	std::memcpy(config, s_PendingConnectConfig, sizeof(config));
@@ -366,8 +373,6 @@ void RequestReconnect(const std::string& serverName)
 
 static void ManualDnsWorker(uint64_t)
 {
-	Netctl::Init();
-
 	int ticks = 0;
 
 	while (true)
