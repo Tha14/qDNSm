@@ -116,6 +116,7 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
            text "not supported for this target", so there is no data-section splitting here and
            dead stripping can only discard unreferenced functions. -->
       <AdditionalOptions>-Os %(AdditionalOptions)</AdditionalOptions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <AdditionalDependencies>
