@@ -8,9 +8,10 @@
  * Irisman entry because they used a DNS installer would be a genuinely bad
  * outcome, so the rules below are not stylistic preferences:
  *
- *   1. Only lines whose basename is exactly "qDNSm.sprx" are ever touched.
- *      Every other line survives byte for byte, including comments, blank lines,
- *      indentation and unusual line endings.
+ *   1. Other plugins are never edited: every non-blank line that is not ours
+ *      survives byte for byte, including comments, indentation and unusual line
+ *      endings. Blank or whitespace-only lines are dropped on every rewrite,
+ *      install and uninstall alike.
  *   2. Registering is idempotent and de-duplicating: any pre-existing qDNSm
  *      lines are removed and exactly one is appended, so running the installer
  *      twice does not produce two entries and a user who previously installed

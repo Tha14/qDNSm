@@ -77,24 +77,24 @@ int main()
         FakeFs::Clear();
         BootPlugins::Result r = BootPlugins::Register(kBoot, kSprx);
         CheckBool("missing file: result Ok", r == BootPlugins::Ok, true);
-        Check("missing file: created with one line",
-              FakeFs::Get(kBoot), "/dev_hdd0/plugins/qDNSm.sprx\n");
+        Check("missing file: created with one bare line",
+              FakeFs::Get(kBoot), "/dev_hdd0/plugins/qDNSm.sprx");
     }
     {
         FakeFs::Clear();
         FakeFs::Put(kBoot, "/dev_hdd0/plugins/webMAN.sprx\n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("LF: other plugin preserved byte for byte",
+        Check("LF: other plugin preserved, final line bare",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx\n");
+              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
     }
     {
         FakeFs::Clear();
         FakeFs::Put(kBoot, "/dev_hdd0/plugins/webMAN.sprx\r\n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("CRLF: style matched, other plugin preserved",
+        Check("CRLF: separator matched, final line bare",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\r\n/dev_hdd0/plugins/qDNSm.sprx\r\n");
+              "/dev_hdd0/plugins/webMAN.sprx\r\n/dev_hdd0/plugins/qDNSm.sprx");
     }
     {
         FakeFs::Clear();
@@ -104,13 +104,12 @@ int main()
                     "  /dev_hdd0/plugins/webMAN.sprx  \n"
                     "/dev_hdd0/plugins/Irisman.sprx\n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("comments, blank lines and padding preserved",
+        Check("comments and padding preserved, blank line removed",
               FakeFs::Get(kBoot),
               "# my plugins\n"
-              "\n"
               "  /dev_hdd0/plugins/webMAN.sprx  \n"
               "/dev_hdd0/plugins/Irisman.sprx\n"
-              "/dev_hdd0/plugins/qDNSm.sprx\n");
+              "/dev_hdd0/plugins/qDNSm.sprx");
     }
     {
         FakeFs::Clear();
@@ -118,7 +117,7 @@ int main()
         BootPlugins::Register(kBoot, kSprx);
         Check("already registered: still exactly one entry",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx\n");
+              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
     }
     {
         FakeFs::Clear();
@@ -129,15 +128,15 @@ int main()
         BootPlugins::Register(kBoot, kSprx);
         Check("duplicates collapsed, indented copy matched by basename",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx\n");
+              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
     }
     {
         FakeFs::Clear();
         FakeFs::Put(kBoot, "/dev_hdd0/plugins/webMAN.sprx");
         BootPlugins::Register(kBoot, kSprx);
-        Check("no trailing newline: one inserted, lines not concatenated",
+        Check("no trailing newline: separator inserted, lines not concatenated",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx\n");
+              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
     }
     {
         FakeFs::Clear();
@@ -145,15 +144,60 @@ int main()
         BootPlugins::Register(kBoot, kSprx);
         Check("custom-path entry moved to the standard path",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx\n");
+              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
     }
     {
         FakeFs::Clear();
         FakeFs::Put(kBoot, "/dev_hdd0/plugins/webMAN.sprx\n\n/dev_hdd0/plugins/Irisman.sprx\n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("blank lines between plugins preserved",
+        Check("blank lines between plugins removed",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n\n/dev_hdd0/plugins/Irisman.sprx\n/dev_hdd0/plugins/qDNSm.sprx\n");
+              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/Irisman.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
+    }
+    {
+        FakeFs::Clear();
+        FakeFs::Put(kBoot,
+                    "\n"
+                    "  \n"
+                    "/dev_hdd0/plugins/webMAN.sprx\n"
+                    "\t\n"
+                    "\n"
+                    "/dev_hdd0/plugins/Irisman.sprx\n"
+                    "\n"
+                    "   \n");
+        BootPlugins::Register(kBoot, kSprx);
+        Check("install removes leading, middle and trailing blank lines",
+              FakeFs::Get(kBoot),
+              "/dev_hdd0/plugins/webMAN.sprx\n"
+              "/dev_hdd0/plugins/Irisman.sprx\n"
+              "/dev_hdd0/plugins/qDNSm.sprx");
+    }
+    {
+        FakeFs::Clear();
+        FakeFs::Put(kBoot, "/dev_hdd0/plugins/webMAN.sprx\r\n\r\n\t\r\n");
+        BootPlugins::Register(kBoot, kSprx);
+        Check("CRLF blank lines removed, separator kept, final line bare",
+              FakeFs::Get(kBoot),
+              "/dev_hdd0/plugins/webMAN.sprx\r\n/dev_hdd0/plugins/qDNSm.sprx");
+    }
+    {
+        FakeFs::Clear();
+        FakeFs::Put(kBoot,
+                    "/dev_hdd0/plugins/qDNSm.sprx\n"
+                    "\n"
+                    "/dev_hdd0/plugins/webMAN.sprx\n"
+                    "\n");
+        BootPlugins::Register(kBoot, kSprx);
+        Check("old entry and blanks removed, one entry appended at the end",
+              FakeFs::Get(kBoot),
+              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
+    }
+    {
+        FakeFs::Clear();
+        FakeFs::Put(kBoot, "/dev_hdd0/plugins/qDNSm.sprx\n\n\n");
+        BootPlugins::Register(kBoot, kSprx);
+        Check("reinstall with trailing blanks leaves one bare line",
+              FakeFs::Get(kBoot), "/dev_hdd0/plugins/qDNSm.sprx");
     }
 
     printf("\n-- unregister --\n");
@@ -333,8 +377,8 @@ int main()
         FakeFs::Put(kBoot, "");
         BootPlugins::Result r = BootPlugins::Register(kBoot, kSprx);
         CheckBool("register onto empty file: Ok", r == BootPlugins::Ok, true);
-        Check("register onto empty file: just our line",
-              FakeFs::Get(kBoot), "/dev_hdd0/plugins/qDNSm.sprx\n");
+        Check("register onto empty file: just our bare line",
+              FakeFs::Get(kBoot), "/dev_hdd0/plugins/qDNSm.sprx");
     }
     {
         FakeFs::Clear();
@@ -348,8 +392,8 @@ int main()
         FakeFs::Clear();
         FakeFs::Put(kBoot, "\n\n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("file of blank lines: blank lines kept",
-              FakeFs::Get(kBoot), "\n\n/dev_hdd0/plugins/qDNSm.sprx\n");
+        Check("file of blank lines: cleaned to just our bare line",
+              FakeFs::Get(kBoot), "/dev_hdd0/plugins/qDNSm.sprx");
     }
 
     printf("\n-- failure handling --\n");

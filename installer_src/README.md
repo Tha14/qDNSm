@@ -31,7 +31,7 @@ sh installer_src/tests/run-tests.sh
 | `Makefile` | build, and the `pkg` target |
 | `Installer.cpp` | the flow: prompt, install/uninstall, report, reboot |
 | `InstallerFs.cpp/.hpp` | file operations over sysFs, with staged writes |
-| `BootPlugins.cpp/.hpp` | reading and editing `boot_plugins.txt`; uninstalling strips blank lines and the trailing newline, so no empty line of any kind is left, and leaves the file untouched when nothing of ours is in it |
+| `BootPlugins.cpp/.hpp` | reading and editing `boot_plugins.txt`; install and uninstall both strip blank lines and the trailing newline, leaving the final line bare, and uninstall leaves the file untouched when nothing of ours is in it |
 | `Dialog.cpp/.hpp` | RSX bring-up and the SysUtil dialogs |
 | `Small.hpp` | a small string/buffer type — see the note in the file |
 | `TargetCompat.hpp` | maps the SDK's file APIs across SNC and PSL1GHT |

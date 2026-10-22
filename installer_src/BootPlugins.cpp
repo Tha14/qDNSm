@@ -279,14 +279,13 @@ namespace
         if (removing && CountQdnsLines(g_lines, count) == 0)
             return Ok;
 
-        /* Uninstall drops empty lines entirely: none survive the removal. */
         size_t keptCount = 0;
         for (size_t i = 0; i < count; i++)
         {
             if (IsQdnsLine(g_lines[i]))
                 continue;
 
-            if (removing && BlankLine(g_lines[i]))
+            if (BlankLine(g_lines[i]))
                 continue;
 
             if (keptCount >= Small::kMaxLines)
@@ -310,10 +309,6 @@ namespace
             const bool isFinal = (i + 1 == keptCount);
             const bool dropTerm = isFinal && (lineToAppend == NULL);
 
-            /* Register keeps the last line's terminator and adds one if it is
-             * missing, so appending a new entry can never merge two lines into
-             * one broken path. Unregister writes the last line bare instead:
-             * no empty line of any kind survives, not even at the bottom. */
             if ((line.termLen > 0) && !dropTerm)
             {
                 if (!Emit(g_updated, out, g_text + line.termStart, line.termLen))
@@ -330,14 +325,8 @@ namespace
         {
             if (!Emit(g_updated, out, lineToAppend, strlen(lineToAppend)))
                 return TooLarge;
-
-            if (!Emit(g_updated, out, term, termLen))
-                return TooLarge;
         }
 
-        /* Unregistering the last entry leaves an empty file rather than no file.
-         * Some launchers treat a missing boot_plugins.txt as "restore defaults",
-         * which would be a surprising side effect of uninstalling a DNS plugin. */
         return StageAndSwap(path, g_text, originalLen, state.exists, g_updated, out);
     }
 }
