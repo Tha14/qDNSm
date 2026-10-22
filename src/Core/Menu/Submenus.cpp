@@ -35,62 +35,23 @@ void ApplyDnsServer(size_t index)
 		return;
 
 	const std::string& secondary = g_Config.m_Settings.secondaryDns;
+	const std::string nameAscii = WideToAscii(entry->name);
+	const std::string displayName = nameAscii.empty() ? entry->primary : nameAscii;
+
 
 	ApplyDnsServers(entry->primary, secondary);
-
-	/* The reload attempt: write the whole device block back through the device-specific setter,
-	 * changing only the two DNS fields. Same destination as the per-field setters above - the
-	 * readback proved those already stored correctly - so this is not about where the value lands
-	 * but about the code path, which is the only documented one that touches the entire
-	 * configuration at once and so may carry validation and notification a single-field write
-	 * skips. Read-modify-write, so the wireless and proxy fields survive untouched.
-	 *
-	 * Return value deliberately discarded: it used to be printed in the notification, and a
-	 * shipping module has no business reporting setter codes to a user who picked a DNS server. */
 	WriteDeviceNetworkConfig(0, entry->primary, secondary);
 
-	/*
-	 * With automatic DNS the console ignores the servers we just wrote and takes its own from DHCP,
-	 * which looks exactly like qDNSm failing. Raised as a flag, done on the worker thread.
-	 */
-	RequestManualDnsFlag();
+	if (g_Config.m_Settings.autoReconnect)
+		RequestReconnect(displayName);
 
-	/*
-	 * Removed from this flow, and it should stay removed:
-	 *
-	 *   ApplyDnsToResolver() - sys_net_set_lib_name_server. This is the per-process library
-	 *       nameserver, not the console's. The matching getter returned 2 immediately after a
-	 *       successful-looking write, so it never even confirmed the value. It touched nothing the
-	 *       user wanted changed and had a side effect.
-	 *
-	 *   RequestReconnect() - dropped the link after every DNS change via sceNetCtlDisconnectVsh. It
-	 *       worked, reliably, and that was the problem: the console stopped assigning DHCP
-	 *       addresses, and the XMB's own network test then refused with "An Ethernet Cable is not
-	 *       connected." The link could be dropped but never brought back from here, so the user
-	 *       was left worse off than before pressing anything.
-	 *
-	 * Neither is recoverable from inside the module.
-	 */
-
-	/* WideToAscii first because DnsServerEntry::name is a std::wstring, and the notification
-	 * needs the narrow form. */
-	const std::string nameAscii = WideToAscii(entry->name);
-
-	/*
-	 * The servers are stored at this point, and that is everything this module can do about it.
-	 *
-	 * The console reads its DNS settings when it builds a connection, so the new servers do not
-	 * take effect until one is built. That is the one thing qDNSm has not managed to do for the
-	 * user, and a long investigation into the network stack's internals failed to find a way - see
-	 * the note at the top of Network.cpp, which covers the two calls that can break a console's
-	 * networking outright.
-	 *
-	 * So the message gives the exact gesture. Both halves matter: the console has to take the link
-	 * down and then rebuild it, and either one alone does not do it.
-	 */
 	std::string message = "DNS set to ";
-	message += nameAscii;
-	message += ".\nDisable, then Enable Internet Connection.";
+	message += displayName;
+
+	if (g_Config.m_Settings.autoReconnect)
+		message += ".\nReconnecting...";
+	else
+		message += ".\nDisable, then Enable Internet Connection.";
 
 	std::wstring wideMessage;
 	AsciiToWide(wideMessage, message);
@@ -345,27 +306,15 @@ static void BeginInstructions()
 	g_Flow = Flow_None;
 	g_FlowStep = 0;
 
-	g_InputUi.BeginInfo(L"How to use qDNSm",
+	g_InputUi.BeginInfo(L"How to use qDNSm without auto reconnect",
 		"1. Pick a DNS server from the list.\n"
-		"\n"
-		"2. Go to Settings > Network > Internet\n"
-		"   Connection Settings.\n"
-		"\n"
-		"3. Select Disable Internet Connection.\n"
-		"\n"
-		"4. Select Enable Internet Connection.\n"
-		"\n"
-		"The console only reads its DNS settings\n"
-		"while it is building a connection, so\n"
-		"both steps are needed. A change that looks\n"
-		"like it did nothing has almost always been\n"
-		"skipped step 3 or step 4.\n"
-		"\n"
-		"Also make sure Set Manually is selected.\n"
-		"With automatic DNS the console takes its\n"
-		"servers from DHCP and ignores the ones\n"
-		"qDNSm writes. qDNSm turns this on for you,\n"
-		"but the XMB has to be allowed to save it.");
+		"2. Go to Settings > Network Settings\n"
+		"3. Press X on Internet connection.\n"
+		"3. Select Disable.\n"
+		"3. Press X on Internet connection again.\n"
+		"4. Select Enable.\n"
+		"5. You're now using the DNS server you picked."
+		);
 }
 
 static void BeginAbout()
@@ -377,17 +326,16 @@ static void BeginAbout()
 	/* Lines kept short deliberately: DrawInfo clips rather than wraps, because wrapping needs font
 	 * metrics this module has no way to query. */
 	g_InputUi.BeginInfo(L"About",
-		"qDNSm\n"
-		"\n"
-		"A DNS switcher for the PlayStation 3.\n"
+		"A quick DNS switcher for the PlayStation 3.\n"
 		"\n"
 		"Version " QDNSM_VERSION_ASCII "\n"
 		"\n"
 		"Free to use.\n"
-		"https://github.com/Tha14/qDNSm"
-		"\n",
+		"https://github.com/Tha14/qDNSm",
 		L"Developed by",
-		L"Tha_14");
+		L"Tha_14",
+		L"qDNSm",
+		true);
 }
 
 void OptionsSubmenu()
@@ -406,7 +354,10 @@ void OptionsSubmenu()
 	g_Menu.Option(L"Startup notification")
 		.Toggle(g_Config.m_Settings.showNotification, SaveSettings, SaveSettings);
 
-	g_Menu.Option(L"How to use").Action([]
+	g_Menu.Option(L"Auto reconnect")
+		.Toggle(g_Config.m_Settings.autoReconnect, SaveSettings, SaveSettings);
+
+	g_Menu.Option(L"How to use manually").Action([]
 	{
 		BeginInstructions();
 	});

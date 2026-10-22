@@ -13,11 +13,13 @@ static const char* SECTION_DNS_SERVER_PREFIX = "DNSServer";
 
 static const char* KEY_SECONDARY_DNS = "SecondaryDNS";
 static const char* KEY_SHOW_NOTIFICATION = "ShowNotification";
+static const char* KEY_AUTO_RECONNECT = "AutoReconnect";
 static const char* KEY_NAME = "Name";
 static const char* KEY_PRIMARY = "Primary";
 
 static const char* DEFAULT_SECONDARY_DNS = "8.8.8.8";
 static const bool DEFAULT_SHOW_NOTIFICATION = true;
+static const bool DEFAULT_AUTO_RECONNECT = true;
 
 struct DefaultDnsServer
 {
@@ -27,16 +29,29 @@ struct DefaultDnsServer
 
 static const DefaultDnsServer DEFAULT_DNS_SERVERS[] =
 {
-	{ "PSONE", "185.194.142.4" },
 	{ "PS Rewired", "67.222.156.250" },
 	{ "PSORG", "51.79.41.185" },
-	{ "WAREHOUSE WIKI", "188.225.75.35" },
 	{ "PS3 Reborn", "146.190.205.197" },
 	{ "BF Reborn", "151.241.100.80" },
+	{ "PS Restored", "165.227.128.12" },
+	{ "PSONE", "185.194.142.4" },
+	{ "WAREHOUSE WIKI", "188.225.75.35" },
 	{ "Uncharted Reloaded", "51.75.22.125" },
 	{ "Warhawk Revived", "198.100.158.95" },
 	{ "SaveConfrontation⁠⁠", "146.190.205.197" },
 	{ "PSHOME Revival", "52.86.120.101" },
+	{ "Armored Core 4 Update Data", "160.251.171.125" },
+	{ "PS Restored", "165.227.128.12" },
+	{ "Classics", "136.55.43.79" },
+	{ "The Archstones", "142.93.245.186" },
+	{ "Antigravity Racing Foundation", "147.135.213.57" },
+	{ "Project Neptune", "128.140.0.23" },
+	{ "MNR Revival", "45.32.179.33" },
+	{ "Thirteen", "95.214.55.111" },
+	{ "PES 2018 Online", "162.35.166.153" },
+	{ "TDU World", "194.164.90.135" },
+	{ "TLOU Factions", "51.255.40.74" },
+	{ "UT3MOD", "15.204.233.35" },
 	{ "Cloudflare DNS", "1.1.1.1" },
 	{ "Google DNS", "8.8.8.8" },
 };
@@ -180,7 +195,7 @@ static bool RangeToBool(const char* text, size_t length)
 	return false;
 }
 
-static void ParseConfig(Config& config, char* data, size_t size)
+static bool ParseConfig(Config& config, char* data, size_t size)
 {
 	enum
 	{
@@ -190,6 +205,8 @@ static void ParseConfig(Config& config, char* data, size_t size)
 	};
 
 	config.m_DnsServers.clear();
+
+	bool autoReconnectPresent = false;
 
 	int currentSection = SectionNone;
 	DnsServerEntry pendingEntry{};
@@ -276,6 +293,11 @@ static void ParseConfig(Config& config, char* data, size_t size)
 				RangeToString(config.m_Settings.secondaryDns, value, valueLength);
 			else if (RangeEquals(key, keyLength, KEY_SHOW_NOTIFICATION))
 				config.m_Settings.showNotification = RangeToBool(value, valueLength);
+			else if (RangeEquals(key, keyLength, KEY_AUTO_RECONNECT))
+			{
+				config.m_Settings.autoReconnect = RangeToBool(value, valueLength);
+				autoReconnectPresent = true;
+			}
 		}
 		else if (currentSection == SectionDnsServer)
 		{
@@ -294,6 +316,8 @@ static void ParseConfig(Config& config, char* data, size_t size)
 
 	if (pendingEntryValid)
 		config.m_DnsServers.push_back(pendingEntry);
+
+	return autoReconnectPresent;
 }
 
 void Config::ResetToDefaults()
@@ -311,6 +335,7 @@ void Config::ResetToDefaults()
 
 	m_Settings.secondaryDns = DEFAULT_SECONDARY_DNS;
 	m_Settings.showNotification = DEFAULT_SHOW_NOTIFICATION;
+	m_Settings.autoReconnect = DEFAULT_AUTO_RECONNECT;
 }
 
 bool Config::Load()
@@ -336,7 +361,13 @@ bool Config::Load()
 		return exists ? true : Save();
 	}
 
-	ParseConfig(*this, &content[0], size);
+	bool autoReconnectPresent = ParseConfig(*this, &content[0], size);
+
+	if (!autoReconnectPresent && (size > 0))
+	{
+		m_Settings.autoReconnect = DEFAULT_AUTO_RECONNECT;
+		Save();
+	}
 
 	return true;
 }
@@ -358,6 +389,10 @@ bool Config::Save()
 	content += KEY_SHOW_NOTIFICATION;
 	content += "=";
 	content += (m_Settings.showNotification ? "1" : "0");
+	content += "\n";
+	content += KEY_AUTO_RECONNECT;
+	content += "=";
+	content += (m_Settings.autoReconnect ? "1" : "0");
 	content += "\n\n";
 
 	for (size_t i = 0; i < m_DnsServers.size(); i++)

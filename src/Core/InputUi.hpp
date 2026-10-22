@@ -59,6 +59,11 @@ public:
 	 * Read-only text screen. Newlines in the message start new lines; a blank line is drawn as a
 	 * paragraph break with extra spacing.
 	 *
+	 * An optional heading is drawn at the top of the card, centred in the same large accent
+	 * style as the credit name. The body starts below it when it is present. The body is
+	 * left-aligned by default; centerBody centers each line horizontally without changing
+	 * its colour.
+	 *
 	 * An optional credit block is drawn along the bottom of the card, centred: a small dim label
 	 * above a larger accent-coloured name. Both are optional and independent - a screen can want the
 	 * name without a label, though there is no reason to yet.
@@ -70,7 +75,8 @@ public:
 	 * Lines are clipped, not wrapped - see the implementation.
 	 */
 	void BeginInfo(const std::wstring& title, const std::string& message,
-		const std::wstring& creditLabel = L"", const std::wstring& credit = L"");
+		const std::wstring& creditLabel = L"", const std::wstring& credit = L"",
+		const std::wstring& heading = L"", bool centerBody = false);
 
 
 	/* Reads input for this frame. Call first, then Draw(). */
@@ -109,6 +115,10 @@ private:
 	std::wstring m_Title{};
 	std::string m_Text{};
 	std::wstring m_Message{};
+
+	std::wstring m_InfoHeading{};
+
+	bool m_InfoCenterBody{};
 
 	/* Optional credit block at the foot of a Mode_Info card: a small label and a larger name, both
 	 * centred and both empty by default. Reset by every other Begin*, so a leftover cannot appear on

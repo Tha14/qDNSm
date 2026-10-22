@@ -85,7 +85,7 @@ bool Menu::IsDeleteButtonPressed()
 
 bool Menu::IsUpPressed()
 {
-   if (g_Input.IsButtonDownFor(Input::BUTTON_PAD_UP, 250))
+   if (g_Input.IsButtonDownFor(Input::BUTTON_PAD_UP, 150))
    {
       return true;
    }
@@ -95,7 +95,7 @@ bool Menu::IsUpPressed()
 
 bool Menu::IsDownPressed()
 {
-   if (g_Input.IsButtonDownFor(Input::BUTTON_PAD_DOWN, 250))
+   if (g_Input.IsButtonDownFor(Input::BUTTON_PAD_DOWN, 150))
    {
       return true;
    }

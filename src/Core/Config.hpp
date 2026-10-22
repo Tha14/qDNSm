@@ -12,6 +12,7 @@ struct ConfigSettings
 {
 	std::string secondaryDns;
 	bool showNotification{};
+	bool autoReconnect{true};
 };
 
 class Config

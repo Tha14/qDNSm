@@ -61,6 +61,8 @@ static std::wstring Widen(const std::string& text)
 
 void InputUi::BeginText(const std::wstring& title, const std::string& initial, bool numeric)
 {
+	m_InfoHeading.clear();
+	m_InfoCenterBody = false;
 	m_CreditLabel.clear();
 	m_Credit.clear();
 
@@ -78,6 +80,8 @@ void InputUi::BeginText(const std::wstring& title, const std::string& initial, b
 
 void InputUi::BeginConfirm(const std::wstring& title, const std::string& message)
 {
+	m_InfoHeading.clear();
+	m_InfoCenterBody = false;
 	m_CreditLabel.clear();
 	m_Credit.clear();
 
@@ -194,7 +198,7 @@ void InputUi::Update()
 	if (g_Input.IsButtonDownFor(Input::BUTTON_PAD_DOWN, 180))
 		m_Row = (m_Row + 1) % rows;
 
-	if (g_Input.IsButtonDownFor(Input::BUTTON_TRIANGLE, 250))
+	if (g_Input.IsButtonDownFor(Input::BUTTON_SQUARE, 250))
 		Backspace();
 
 	if (m_Mode == Mode_Text)
@@ -395,11 +399,14 @@ void InputUi::DrawConfirm()
 }
 
 void InputUi::BeginInfo(const std::wstring& title, const std::string& message,
-	const std::wstring& creditLabel, const std::wstring& credit)
+	const std::wstring& creditLabel, const std::wstring& credit,
+	const std::wstring& heading, bool centerBody)
 {
 	m_Mode = Mode_Info;
 	m_Title = title;
 	m_Message = Widen(message);
+	m_InfoHeading = heading;
+	m_InfoCenterBody = centerBody;
 	m_CreditLabel = creditLabel;
 	m_Credit = credit;
 	m_Text.clear();
@@ -425,6 +432,19 @@ void InputUi::DrawInfo()
 
 	float y = m_BoxMaxY - 90.0f;
 
+	if (!m_InfoHeading.empty())
+	{
+		g_Renderer.Text(m_InfoHeading, paf::vec2(0.0f, m_BoxMaxY - 90.0f), 40.0f,
+			paf::vec4(0.0f, 1.0f, 1.0f, 1.0f), Renderer::Centered, Renderer::Centered);
+
+		y = m_BoxMaxY - 130.0f;
+	}
+
+	const float bodyX = m_InfoCenterBody
+		? (m_BoxLeft + (m_BoxWidth / 2.0f))
+		: (m_BoxLeft + 40.0f);
+	const Renderer::Align bodyAlign = m_InfoCenterBody ? Renderer::Centered : Renderer::Left;
+
 	std::size_t lineStart = 0;
 
 	for (std::size_t i = 0; i <= m_Message.size(); i++)
@@ -442,8 +462,8 @@ void InputUi::DrawInfo()
 			if (y < m_BoxMinY + 60.0f)
 				break;
 
-			g_Renderer.Text(line, paf::vec2(m_BoxLeft + 40.0f, y), 22.0f,
-				paf::vec4(1.0f, 1.0f, 1.0f, 1.0f), Renderer::Left, Renderer::Centered);
+			g_Renderer.Text(line, paf::vec2(bodyX, y), 22.0f,
+				paf::vec4(1.0f, 1.0f, 1.0f, 1.0f), bodyAlign, Renderer::Centered);
 		}
 
 		y -= lineHeight + (line.empty() ? paragraphGap : 0.0f);
@@ -503,7 +523,7 @@ void InputUi::Draw()
 	if (m_Mode == Mode_Info)
 	{
 		DrawInfo();
-		DrawFooter(L"X or Circle: close", L"");
+		DrawFooter(L"Circle or R1: close", L"");
 		return;
 	}
 
@@ -514,5 +534,5 @@ void InputUi::Draw()
 	else
 		DrawCharacterGrid();
 
-	DrawFooter(L"X: type    Triangle: backspace    L1: case", L"Circle: cancel    R1/Start: done");
+	DrawFooter(L"X: type    Square: backspace    L1: case", L"Circle: cancel    R1/Start: done");
 }

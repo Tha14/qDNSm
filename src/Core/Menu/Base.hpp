@@ -159,7 +159,7 @@ public:
    paf::vec2 position{ -480.0, -35.0 };
    paf::vec2 safeArea{ 31.0, 18.0 };
    float sizeHeader = 40.0;
-   float sizeWidth = 184.0;
+   float sizeWidth = 214.0;
    float sizeText = 18.0;
    float sizeTextHeader = 30.0;
    float sizeTextDescription = 18.0;

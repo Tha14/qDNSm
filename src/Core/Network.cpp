@@ -1,68 +1,52 @@
 #include "Network.hpp"
+#include "Config.hpp"   // AsciiToWide
 
 #include <sys/ppu_thread.h>
 
-/*
- * xregistry.h carries no linkage guard of its own, so every consumer wraps it. Skipping the wrap
- * gave these declarations C++ linkage and the link failed with _Z17xsetting_F48C0548v - the
- * mangled form of xsetting_F48C0548(), against a stub library that exports it unmangled.
- *
- * Matches the pattern already used in Submenus.cpp and Submenus.hpp.
- */
 extern "C" {
-	#include "../Utils/xregistry.h"   // address, net_info, xnet
+	#include "../Utils/xregistry.h"   // address, xnet
 }
 
 #include "../Utils/Timers.hpp"   // Sleep
 #include "Helpers.hpp"
 #include <vsh/vshmain.hpp>
+#include <vsh/stdc.hpp>              // memset, strncpy
 #include <cstring>
 
 /*
- * The DNS write path, and nothing else.
+ * The VSH side netctl exports.
  *
- * This file used to carry about 900 lines of investigation machinery: a diagnostic logger, a
- * periodic sampler, detours on netctl_main and sys_net, a worker thread that drove the connection
- * through a disconnect and reconnect, and a sweep that called every undocumented export in
- * netctl_main to see what would happen. All of it is gone.
- *
- * What survived is the part that works and the part that is honest.
- *
- * What works: the servers are stored correctly, verified by readback on hardware many times over.
- * Both the per-field setters and the device-specific aggregate write land in the console's own
- * configuration and can be read straight back out of it.
- *
- * What does not work: making the console act on the change. The console reads its DNS settings when
- * it builds a connection, and nothing reachable from a third-party SPRX can make it do that. The
- * XMB's own "Test Network Connection" does, and the user has to press it.
- *
- * Two of the attempts cost this project a console reboot each, so nobody re-treads them:
- *
- *   - netctl_main exports must be called through their linked stubs. opd_s is {func, toc}, and
- *     casting func and calling it produced calls that neither faulted nor returned, which read as a
- *     wall in the network service and was entirely our own bug.
- *
- *   - sceNetApCtlTermVsh returns success while terminating a network stack this module does not
- *     own, and the console then stops assigning DHCP addresses until it is rebooted. It was tried
- *     deliberately, once, and confirmed again that it cannot be undone from here. Do not re-add it.
+ * These are the linked stubs from netctl_main_export_stub. They must be called through
+ * the stub: building an OPD by hand and casting it produced a call that neither faulted
+ * nor returned.
  */
+extern "C" int netctl_main_218CFBD3(void* threadInfo, int priority, int stackSize); // sceNetCtlInitVsh
+extern "C" int netctl_main_EC73B49D(int* state);   // sceNetCtlGetStateVsh
+extern "C" int netctl_main_5AB91391(void* threadInfo); // sceNetCtlDisconnectVsh
+extern "C" int netctl_main_5D1D7803(void* config); // sceNetCtlConnectVsh
 
-/*
- * Builds the 16-byte address struct the xnet setters expect.
- *
- * Copied through an explicitly bounded loop rather than std::copy or a cast, and this is not
- * stylistic: the obvious version of this function used value.data() as a null-terminated buffer,
- * which is only guaranteed from C++17 onwards and is not guaranteed at all on this toolchain. The
- * setters read the full 16 bytes, so a missing terminator is a real read past the end of a
- * std::string's buffer rather than a theoretical one.
- *
- * "255.255.255.255" is 15 characters plus a terminator, which is exactly 16, so the bound is size-1
- * and the loop always leaves room to terminate.
- */
+static const uint32_t kConnectConfigSize = 0x68C;
+
+static uint8_t s_PendingConnectConfig[kConnectConfigSize];
+static bool s_PendingConnectConfigReady = false;
+
+/* The waits, in 250 ms polls. */
+static const int kDownWaitTicks = 36;   /* 9 seconds */
+static const int kUpWaitTicks = 40;     /* 10 seconds */
+
+static std::string BoundedString(const char* data, std::size_t size)
+{
+	std::size_t length = 0;
+
+	while ((length < size) && (data[length] != '\0'))
+		length++;
+
+	return std::string(data, length);
+}
+
 static address MakeAddress(const std::string& text)
 {
 	address result{};
-
 	std::size_t i = 0;
 
 	while ((i < text.size()) && (i < (sizeof(result.addr) - 1)))
@@ -78,9 +62,9 @@ static address MakeAddress(const std::string& text)
 /*
  * Copies a string into one of the configuration block's fixed-size char fields.
  *
- * Zeroed first rather than terminated in place, so a shorter new value cannot leave the tail of a
- * longer old one behind. primaryDns[0x10] is exactly 16 bytes and the longest realistic address is
- * 15 characters, so the copy is bounded at size-1 and never runs off the end.
+ * Zeroed first rather than terminated in place, so a shorter new value cannot leave the
+ * tail of a longer old one behind. primaryDns[0x10] is exactly 16 bytes and the longest
+ * realistic address is 15 characters, so the copy is bounded at size-1.
  */
 static void FieldFromString(char* data, std::size_t size, const std::string& text)
 {
@@ -95,43 +79,132 @@ static void FieldFromString(char* data, std::size_t size, const std::string& tex
 	}
 }
 
-/*
- * Write both DNS servers through the per-field setters.
- *
- * Secondary first. The order is not cosmetic: a console that is mid-reconnect reads these in
- * sequence, and writing the primary first would leave a window where the new primary is paired with
- * the old secondary.
- *
- * Returns nothing. The return codes of these setters were logged on hardware many times and were
- * always 0, and the readback confirmed the values landed every time, so there is nothing here for a
- * caller to act on.
- */
-void ApplyDnsServers(const std::string& primary, const std::string& secondary)
+static void BuildConnectConfig(const net_info& info, uint8_t* config)
 {
-	if (!secondary.empty())
-	{
-		address secondaryAddress = MakeAddress(secondary);
+	std::memset(config, 0, kConnectConfigSize);
 
-		xnet()->SetSettingNet_secondaryDns(&secondaryAddress);
+	std::memcpy(config + 0x000, &info.device, sizeof(info.device));
+	std::memcpy(config + 0x004, &info.mtu, sizeof(info.mtu));
+	std::memcpy(config + 0x008, &info.etherMode, sizeof(info.etherMode));
+	std::memcpy(config + 0x00C, info.ssid, sizeof(info.ssid));
+	std::memcpy(config + 0x030, &info.authProto, sizeof(info.authProto));
+	std::memcpy(config + 0x034, info.wirelessPassPhrase, sizeof(info.wirelessPassPhrase));
+	std::memcpy(config + 0x078, &info.auth8021xType, sizeof(info.auth8021xType));
+	std::memcpy(config + 0x07C, info.auth8021xAuthName, sizeof(info.auth8021xAuthName));
+	std::memcpy(config + 0x0FC, info.auth8021xAuthKey, sizeof(info.auth8021xAuthKey));
+	std::memcpy(config + 0x180, &info.howToSetupIp, sizeof(info.howToSetupIp));
+	std::memcpy(config + 0x184, info.dhcpHostName, sizeof(info.dhcpHostName));
+	std::memcpy(config + 0x283, info.authName, sizeof(info.authName));
+	std::memcpy(config + 0x303, info.authKey, sizeof(info.authKey));
+	std::memcpy(config + 0x383, info.ipAddress, sizeof(info.ipAddress));
+	std::memcpy(config + 0x393, info.netmask, sizeof(info.netmask));
+	std::memcpy(config + 0x3A3, info.defaultRoute, sizeof(info.defaultRoute));
+	std::memcpy(config + 0x3B4, &info.dnsFlag, sizeof(info.dnsFlag));
+	std::memcpy(config + 0x3B8, info.primaryDns, sizeof(info.primaryDns));
+	std::memcpy(config + 0x3C8, info.secondaryDns, sizeof(info.secondaryDns));
+	std::memcpy(config + 0x3D8, &info.httpProxyFlag, sizeof(info.httpProxyFlag));
+	std::memcpy(config + 0x3DC, info.httpProxyServer, sizeof(info.httpProxyServer));
+	std::memcpy(config + 0x4DC, &info.httpProxyPort, sizeof(info.httpProxyPort));
+
+	int32_t upnpFlag = info.upnpFlag;
+
+	if (upnpFlag == 0)
+		upnpFlag = 1;
+	else if (upnpFlag == 1)
+		upnpFlag = 0;
+
+	std::memcpy(config + 0x4E0, &upnpFlag, sizeof(upnpFlag));
+	std::memcpy(config + 0x4E4, &info.aossFlag, sizeof(info.aossFlag));
+
+	std::memcpy(config + 0x4E8, info.aossWep64Ssid, sizeof(info.aossWep64Ssid));
+	std::memcpy(config + 0x50C, info.aossWep64Key, sizeof(info.aossWep64Key));
+	std::memcpy(config + 0x54D, info.aossWep128Ssid, sizeof(info.aossWep128Ssid));
+	std::memcpy(config + 0x571, info.aossWep128Key, sizeof(info.aossWep128Key));
+	std::memcpy(config + 0x5B2, info.aossWpaPskTkipSsid, sizeof(info.aossWpaPskTkipSsid));
+	std::memcpy(config + 0x5D6, info.aossWpaPskTkipKey, sizeof(info.aossWpaPskTkipKey));
+	std::memcpy(config + 0x617, info.aossWpaPskAesSsid, sizeof(info.aossWpaPskAesSsid));
+	std::memcpy(config + 0x63B, info.aossWpaPskAesKey, sizeof(info.aossWpaPskAesKey));
+}
+
+namespace Netctl
+{
+	static uint8_t s_ThreadInfo[0x200];
+
+	int Init()
+	{
+		vsh::memset(s_ThreadInfo, 0, sizeof(s_ThreadInfo));
+		int result = netctl_main_218CFBD3(&s_ThreadInfo[0], 1000, 0x10000);
+		return result;
 	}
 
-	address primaryAddress = MakeAddress(primary);
+	int GetState()
+	{
+		int state = -1;
+		int result = netctl_main_EC73B49D(&state);
+		return state;
+	}
 
-	xnet()->SetSettingNet_primaryDns(&primaryAddress);
+	int Disconnect()
+	{
+		int result = netctl_main_5AB91391(&s_ThreadInfo[0]);
+		return result;
+	}
+
+
+	int ConnectWithConfig(uint8_t* config)
+	{
+		return netctl_main_5D1D7803(config);
+	}
 }
 
 /*
- * Write the whole device configuration block back through the device-specific setter.
+ * The two servers in the keys the config connect builds from. The manual flag is not
+ * written here: it travels in the device block.
+ */
+void ApplyDnsServers(const std::string& primary, const std::string& secondary)
+{
+	/*
+	 * Read before writing: a value that is already there is not written again. Writing a
+	 * setting tells the console's service to read its configuration again, and a write
+	 * that changes nothing makes it do that for nothing.
+	 */
+	address current{};
+	address value{};
+
+	int primaryGet = xnet()->GetSettingNet_primaryDns(&current);
+	std::string currentPrimary = BoundedString(current.addr, sizeof(current.addr));
+
+	if ((primaryGet != 0) || (currentPrimary != primary))
+	{
+		value = MakeAddress(primary);
+		xnet()->SetSettingNet_primaryDns(&value);
+	}
+
+	current = address{};
+
+	int secondaryGet = xnet()->GetSettingNet_secondaryDns(&current);
+	std::string currentSecondary = BoundedString(current.addr, sizeof(current.addr));
+
+	if ((secondaryGet != 0) || (currentSecondary != secondary))
+	{
+		value = MakeAddress(secondary);
+		xnet()->SetSettingNet_secondaryDns(&value);
+	}
+}
+
+/*
+ * The device block write, the one the non-auto path used.
  *
- * This is the only documented call that touches the entire configuration at once, so it is the one
- * most likely to carry the validation and notification that a single-field write skips. It is a
- * read-modify-write for that reason: the block also holds the wireless passphrase, the HTTP proxy
- * and the AOSS keys, and writing a partially populated struct would blank all three.
+ * Read the live device configuration, change the two DNS fields, set the manual flag in
+ * the block, and write it back. This is what updates the configuration the XMB's
+ * network status list displays; the per-field setters above update the keys, not that
+ * list.
  *
- * Device 0 is the live one. Device 2 was probed and came back completely empty on hardware, so it
- * is not carrying a configuration at all.
+ * The flag is written as part of the block. The standalone flag setter
+ * (SetSettingNet_dnsFlag) is the call that hangs the console, so it is not used.
  *
- * Returns the setter's return code, or -1 if the block could not be read in the first place.
+ * Device 0 is the live device. Returns the setter's return code, or -1 if the block
+ * could not be read first.
  */
 int WriteDeviceNetworkConfig(int device, const std::string& primary, const std::string& secondary)
 {
@@ -139,83 +212,168 @@ int WriteDeviceNetworkConfig(int device, const std::string& primary, const std::
 
 	std::memset(&config, 0, sizeof(config));
 
-	/* Read first, through the same accessor the write uses. The plain getter takes only the struct
-	 * and addresses a different slot, so mixing the two is how a correct write ends up looking like
-	 * it persisted nothing. */
-	if (static_cast<int>(xnet()->sub_44AA24(device, &config)) != 0)
+	int read = static_cast<int>(xnet()->sub_44AA24(device, &config));
+
+	if (read != 0)
 		return -1;
 
 	FieldFromString(config.primaryDns, sizeof(config.primaryDns), primary);
 	FieldFromString(config.secondaryDns, sizeof(config.secondaryDns),
 		secondary.empty() ? std::string("0.0.0.0") : secondary);
 
-	return static_cast<int>(xnet()->sub_44B2EC(device, &config));
+	/* Manual DNS. Carried by the block so the standalone flag setter is not called. */
+	config.dnsFlag = 1;
+
+	int write = static_cast<int>(xnet()->sub_44B2EC(device, &config));
+
+	if (write == 0)
+	{
+		BuildConnectConfig(config, s_PendingConnectConfig);
+		s_PendingConnectConfigReady = true;
+	}
+	else
+	{
+		s_PendingConnectConfigReady = false;
+	}
+
+	return write;
 }
 
-/*
- * Make sure the console is set to use the DNS servers qDNSm just wrote.
- *
- * This is the one setting that silently decides whether any of it matters. With automatic DNS the
- * service takes its servers from DHCP and primaryDns/secondaryDns are never consulted, so a user who
- * switched DNS on the XMB years ago and forgot sees qDNSm report success and see no change at all.
- * It is the single most likely reason for "it doesn't work", and it costs one flag to rule out.
- *
- * It is read first and only written when it is actually wrong, because this is a stored setting and
- * an unnecessary write is a change the user did not ask for.
- *
- * It runs on a worker thread. The original author left this call commented out with the note
- * "Causes XMB to freeze", and while that is most likely about doing it from the frame hook rather
- * than about the call itself, the cheap answer is to not do it there. Nothing on the XMB's frame
- * loop should ever be able to freeze the XMB's frame loop.
- */
-static volatile bool s_ManualDnsRequested = false;
+static volatile bool s_ReconnectRequested = false;
+static volatile bool s_ReconnectRunning = false;
+static char s_ReconnectName[64] = {};
 
-void RequestManualDnsFlag()
+static void ShowReconnectFailure(bool willFail)
 {
-	s_ManualDnsRequested = true;
+
+	std::string message = willFail
+		? "Automatic reconnect will fail."
+		: "Automatic reconnect failed.";
+	message += "\nDisable it from the qDNSm options menu.";
+
+	std::wstring wide;
+
+	AsciiToWide(wide, message);
+
+	vsh::ShowNotificationWithIcon(wide, vsh::NotifyIcon::Caution,
+		vsh::NotifySound::Error);
 }
 
-static void EnsureManualDns()
+static void NetworkThread(uint64_t)
 {
-	int flag = -1;
+	uint8_t config[kConnectConfigSize];
 
-	if (xnet()->GetSettingNet_dnsFlag(&flag) != 0)
+	if (!s_PendingConnectConfigReady)
+	{
+		ShowReconnectFailure(true);
+		s_ReconnectRunning = false;
+		sys_ppu_thread_exit(0);
+	}
+
+	std::memcpy(config, s_PendingConnectConfig, sizeof(config));
+
+	Netctl::Disconnect();
+
+	int state = Netctl::GetState();
+	int downTicks = 0;
+
+	while ((state != 0) && (downTicks < kDownWaitTicks))
+	{
+		Sleep(250);
+		downTicks++;
+		state = Netctl::GetState();
+	}
+
+	Netctl::ConnectWithConfig(config);
+
+	int upTicks = 0;
+
+	while (((state != 4) && (state != 5)) && (upTicks < kUpWaitTicks))
+	{
+		Sleep(250);
+		upTicks++;
+		state = Netctl::GetState();
+	}
+
+	if ((state == 4) || (state == 5))
+	{
+		if (s_ReconnectName[0] != '\0')
+		{
+
+			std::string message = "DNS was changed to ";
+			message += s_ReconnectName;
+			message += ".";
+
+			std::wstring wide;
+
+			AsciiToWide(wide, message);
+
+			vsh::ShowNotificationWithIcon(wide, vsh::NotifyIcon::BlueVerifiedCheckmark,
+				vsh::NotifySound::OK);
+		}
+		else
+		{
+		}
+	}
+	else
+	{
+		ShowReconnectFailure(false);
+	}
+
+	s_ReconnectRunning = false;
+	sys_ppu_thread_exit(0);
+}
+
+static void ReconnectStep()
+{
+	if (!s_ReconnectRequested)
 		return;
 
-	/* Already manual. Leave the setting alone. */
-	if (flag != 0)
-		return;
+	s_ReconnectRequested = false;
 
-	xnet()->SetSettingNet_dnsFlag(1);
+	sys_ppu_thread_t threadId = SYS_PPU_THREAD_ID_INVALID;
+
+	/*
+	 * 64 KB: this thread also builds the configuration and runs the connect, which is
+	 * the stack size the config connect was proven with on hardware.
+	 */
+	int createResult = sys_ppu_thread_create(&threadId, [](uint64_t arg) -> void
+	{
+		NetworkThread(arg);
+	}, 0, 1000, 0x10000, SYS_PPU_THREAD_CREATE_JOINABLE, "qDNSmNet");
+
+	if (createResult != 0)
+	{
+		s_ReconnectRunning = false;
+		ShowReconnectFailure(false);
+	}
 }
 
-static void ManualDnsWorker(uint64_t arg)
+void RequestReconnect(const std::string& serverName)
 {
-	(void)arg;
+
+	if (s_ReconnectRunning)
+	{
+		return;
+	}
+
+	vsh::memset(s_ReconnectName, 0, sizeof(s_ReconnectName));
+	vsh::strncpy(s_ReconnectName, serverName.c_str(), sizeof(s_ReconnectName) - 1);
+
+	s_ReconnectRunning = true;
+	s_ReconnectRequested = true;
+}
+
+static void ManualDnsWorker(uint64_t)
+{
+	Netctl::Init();
 
 	int ticks = 0;
 
-	/* Poll rather than block, so the request is never anything more than a flag store on the
-	 * caller's thread. The apply path is the XMB's frame loop. */
 	while (true)
 	{
-		if (s_ManualDnsRequested)
-		{
-			s_ManualDnsRequested = false;
+		ReconnectStep();
 
-			EnsureManualDns();
-		}
-
-		/*
-		 * Whether the XMB is in front decides two things: whether the pad hook should be
-		 * masking buttons, and whether our widgets are still attached to a live tree. A game
-		 * takes the XMB down, and nothing of ours runs while it is down, so the only place
-		 * that can notice is here.
-		 *
-		 * The cooperation mode is a read of the VSH's own state rather than a walk of the
-		 * plugin list, which matters from a thread that is not the VSH's. It changes on the
-		 * scale of seconds, so it is checked once a second rather than four times.
-		 */
 		ticks++;
 		if ((ticks % 4) == 0)
 			g_Helpers.m_GameRunning = (vsh::GetCooperationMode() != vsh::CooperationMode::XMB);
@@ -226,14 +384,13 @@ static void ManualDnsWorker(uint64_t arg)
 
 void StartManualDnsWorker()
 {
+
 	sys_ppu_thread_t workerThreadId = SYS_PPU_THREAD_ID_INVALID;
 
-	/* Argument order is (id, entry, arg, priority, stackSize, flags, name) and the valid priority
-	 * range is 0-3071. An earlier version of this project passed 16384 as the priority, so the
-	 * thread was silently never created and nothing happened with no error at all. */
-	sys_ppu_thread_create(&workerThreadId, [](uint64_t arg) -> void
+	int createResult = sys_ppu_thread_create(&workerThreadId, [](uint64_t arg) -> void
 	{
 		ManualDnsWorker(arg);
 		sys_ppu_thread_exit(0);
-	}, 0, 1000, 4096, SYS_PPU_THREAD_CREATE_JOINABLE, "qDNSmDns");
+	}, 0, 1000, 0x4000, SYS_PPU_THREAD_CREATE_JOINABLE, "qDNSmDns");
+
 }
