@@ -24,7 +24,7 @@ file to distribute.**
 
 ## How it works
 
-`make-installer-pkg.bat` stages a title folder and calls `make-pkg.py`:
+`make-installer-pkg.bat` stages a title folder and calls `make-pkg.py --no-stage`:
 
 ```
 bin/Release-PS3/installer/pkgwork/NPUB72381/
@@ -44,6 +44,13 @@ packaging\make-installer-pkg.bat [Configuration] [Platform]
 Defaults to `Release PS3`. It also runs automatically as the last step of the
 `installer` project's post-build, so a normal solution build produces the PKG
 with no extra step.
+
+Before staging, the script refreshes `bin/<config>-<platform>/installer/qDNSm.sprx`
+from the plugin build's `bin/<config>-<platform>/qDNSm.sprx`. That copy is what
+gets packaged, so a qDNSm.sprx left in the installer folder by an earlier build
+cannot be shipped by mistake. The installer EBOOT is taken from
+`bin/<config>-<platform>/installer/EBOOT.BIN`; if only a Linux installer build
+exists, the script falls back to `installer_src/build/pkg/USRDIR/EBOOT.BIN`.
 
 It always exits `0`, even when packaging fails, so a packaging problem can't
 block a successful code build. Failures print `[FAIL]` and leave the compiled
@@ -93,6 +100,21 @@ for size, tags the PKG entry as NPDRM in the flags, and writes a hardcoded
 digest. See `fself.py`, whose `DigestTypeNPDRM` carries the `fileSHA1` bytes
 `Bite Me Sony`. That is the whole point of the homebrew toolchain — it produces
 packages that install and run, without NPDRM keys.
+
+By default `make-pkg.py` also stages the current compiled binaries before
+packaging, so on Linux it can package without a separate copy step:
+
+```
+python3 packaging/make-pkg.py --contentid=UP0001-NPUB72381_00-0000000000000000 \
+    bin/Release-PS3/installer/pkgwork/NPUB72381/ \
+    bin/Release-PS3/qDNSm-Installer.pkg
+```
+
+It copies `bin/Release-PS3/qDNSm.sprx` to `<staging>/USRDIR/qDNSm.sprx` and
+`bin/Release-PS3/installer/EBOOT.BIN` to `<staging>/USRDIR/EBOOT.BIN`, and
+fills in missing `ICON0.PNG` / `PARAM.SFO` from `packaging/assets`. Use
+`--no-stage` when the staging tree is already assembled; the Windows batch
+drivers do that because they stage explicitly.
 
 ### Why `make-pkg.py` exists rather than calling `pkg.py` directly
 

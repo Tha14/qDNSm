@@ -80,7 +80,7 @@ rem --- package ---------------------------------------------------------------
 rem The trailing slash on the staging directory is required: pkg.py derives each
 rem entry's in-package path by stripping the staging prefix off the full path.
 echo   Building PKG...
-python "%MAKEPKG%" --contentid=%CONTENTID% "%STAGE%/" "%PKG_OUT%"
+python "%MAKEPKG%" --no-stage --contentid=%CONTENTID% "%STAGE%/" "%PKG_OUT%"
 if errorlevel 1 (
     echo.
     echo ERROR: packaging failed - see the output above.

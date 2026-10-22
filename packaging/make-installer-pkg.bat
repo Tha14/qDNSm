@@ -76,6 +76,11 @@ if "%PLATFORM%"=="" set "PLATFORM=PS3"
 
 set "ROOT=%~dp0.."
 set "OUT_DIR=%ROOT%\bin\%CONFIG%-%PLATFORM%\installer"
+REM The plugin build writes its signed payload to the bin root, not to the
+REM installer folder. Keep both names here so the payload can be copied into
+REM the installer output tree before staging.
+set "SPRX=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSm.sprx"
+set "PRX=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSm.prx"
 set "WORK=%OUT_DIR%\pkgwork"
 set "STAGE=%WORK%\%TITLE_ID%"
 set "USRDIR=%STAGE%\USRDIR"
@@ -101,13 +106,20 @@ REM raw ELF to wrap. It still prints SELF built / Data compressed / Data
 REM encrypted / written, and emits a few hundred bytes of header with no payload.
 REM So "EBOOT.BIN written" proves nothing. Size does. The installer module is
 REM around 10 KB, so anything under 8 KB is a stub.
+REM A Linux installer build leaves the signed EBOOT under installer_src\build.
+REM Bring it into the installer output tree when the Windows build did not
+REM produce one, so this script packages the compiled EBOOT regardless of
+REM which platform built it.
+if not exist "%OUT_DIR%" if exist "%ROOT%\installer_src\build\pkg\USRDIR\EBOOT.BIN" mkdir "%OUT_DIR%" >nul 2>&1
+if not exist "%OUT_DIR%\EBOOT.BIN" if exist "%ROOT%\installer_src\build\pkg\USRDIR\EBOOT.BIN" copy /Y "%ROOT%\installer_src\build\pkg\USRDIR\EBOOT.BIN" "%OUT_DIR%\EBOOT.BIN" >nul 2>&1
+
 set "EBOOTSIZE=0"
 if exist "%OUT_DIR%\EBOOT.BIN" for %%f in ("%OUT_DIR%\EBOOT.BIN") do set "EBOOTSIZE=%%~zf"
 
 if not exist "%OUT_DIR%\EBOOT.BIN" set "ERR=EBOOT.BIN missing - did the installer project build?"
 if %EBOOTSIZE% LSS 8192 if not defined ERR set "ERR=EBOOT.BIN is only %EBOOTSIZE% bytes - scetool wrote an empty SELF shell. See vendor\scetool\SIGNING.md."
 
-if not exist "%OUT_DIR%\qDNSm.sprx" if not defined ERR set "ERR=qDNSm.sprx missing - did the qDNSm project build?"
+if not exist "%SPRX%" if not defined ERR set "ERR=qDNSm.sprx missing - did the qDNSm project build?"
 if not exist "%~dp0assets\ICON0.PNG" if not defined ERR set "ERR=ICON0.PNG missing at %~dp0assets\ICON0.PNG"
 if not exist "%~dp0assets\PARAM.SFO" if not defined ERR set "ERR=PARAM.SFO missing at %~dp0assets\PARAM.SFO"
 if not exist "%MAKERY%" if not defined ERR set "ERR=make-pkg.py not found at %MAKERY%"
@@ -133,8 +145,6 @@ REM timestamps: FOR's date modifiers are locale-dependent and would silently
 REM misbehave across a date boundary. Do not name those modifiers anywhere above
 REM either - cmd expands a tilde-parameter even inside a REM, which breaks the
 REM script outright.
-set "SPRX=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSm.sprx"
-set "PRX=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSm.prx"
 set "STALE="
 if exist "%SPRX%" if exist "%PRX%" for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "if ((Get-Item -LiteralPath '%SPRX%').LastWriteTime -lt (Get-Item -LiteralPath '%PRX%').LastWriteTime) { 'STALE' }" 2^>nul`) do set "STALE=%%i"
 if defined STALE if not defined ERR set "ERR=qDNSm.sprx is older than qDNSm.prx - the two projects built in parallel and this would package last build's plugin. Build the solution again, or build the qDNSm project first, then the installer."
@@ -185,6 +195,13 @@ mkdir "%USRDIR%" >nul 2>&1
 if not exist "%USRDIR%" set "ERR=could not create staging directory %USRDIR%"
 if defined ERR goto :failed
 
+REM Refresh the installer-folder payload from the plugin build before staging.
+REM The installer project can finish before qDNSm.sprx is re-signed, which is
+REM exactly how a previous build's plugin ended up in the package.
+copy /Y "%SPRX%" "%OUT_DIR%\qDNSm.sprx" >nul
+if errorlevel 1 set "ERR=could not copy %SPRX% to %OUT_DIR%\qDNSm.sprx"
+if defined ERR goto :failed
+
 copy /Y "%OUT_DIR%\EBOOT.BIN" "%USRDIR%\EBOOT.BIN" >nul
 if errorlevel 1 set "ERR=could not stage EBOOT.BIN"
 if defined ERR goto :failed
@@ -224,7 +241,7 @@ REM PSL1GHT's own ppu_rules passes $(BUILDDIR)/pkg/ for the same reason.
 REM
 REM Output path is absolute because the cwd has moved.
 pushd "%WORK%"
-%PY% "%MAKERY%" --contentid=%CONTENT_ID% %TITLE_ID%/ "%OUT_DIR%\%PKG_LABEL%.pkg" > "%LOG%" 2>&1
+%PY% "%MAKERY%" --no-stage --contentid=%CONTENT_ID% %TITLE_ID%/ "%OUT_DIR%\%PKG_LABEL%.pkg" > "%LOG%" 2>&1
 set "RC=%ERRORLEVEL%"
 popd
 

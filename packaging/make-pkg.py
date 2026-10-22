@@ -37,6 +37,17 @@ because the call returns first. This module reimplements that, ported to Python 
 Usage
 -----
     python make-pkg.py --contentid=<id> <staging-dir>/ <out.pkg>
+    python make-pkg.py --no-stage --contentid=<id> <staging-dir>/ <out.pkg>
+
+By default the current build outputs are copied into the staging tree first:
+
+    bin/Release-PS3/qDNSm.sprx              -> <staging-dir>/USRDIR/qDNSm.sprx
+    bin/Release-PS3/installer/EBOOT.BIN     -> <staging-dir>/USRDIR/EBOOT.BIN
+
+This is what the Linux side uses to package without rebuilding. Pass
+--no-stage when the staging tree has already been populated, as the Windows
+make-installer-pkg.bat does. Missing ICON0.PNG / PARAM.SFO are also copied
+from packaging/assets; existing assets are never overwritten.
 
 The trailing slash on the staging directory is REQUIRED. pkg.py derives each
 entry's in-package path by stripping the staging prefix off the full path, so
@@ -48,6 +59,7 @@ PSL1GHT's own ppu_rules passes $(BUILDDIR)/pkg/ for the same reason.
 import hashlib
 import os
 import runpy
+import shutil
 import struct
 import sys
 import types
@@ -56,6 +68,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PKG_PY_DIR = os.path.normpath(
     os.path.join(HERE, '..', 'vendor', 'PSL1GHT', 'tools', 'ps3py'))
 PKG_PY = os.path.join(PKG_PY_DIR, 'pkg.py')
+
+ROOT = os.path.dirname(HERE)
+BUILD_DIR = os.path.join(ROOT, 'bin', 'Release-PS3')
 
 _CONTEXT_BYTES = 0x40
 _COUNTER_AT = 0x38
@@ -95,6 +110,51 @@ def _pkgcrypt(key, inbuf, length):
     return bytes(out)
 
 
+def _stage_compiled(staging_dir):
+    """Copy the current compiled payload and installer EBOOT into staging."""
+    usrdir = os.path.join(staging_dir, 'USRDIR')
+    sprx = os.path.join(BUILD_DIR, 'qDNSm.sprx')
+    eboot = os.path.join(BUILD_DIR, 'installer', 'EBOOT.BIN')
+
+    if not os.path.isfile(eboot):
+        fallback = os.path.join(
+            ROOT, 'installer_src', 'build', 'pkg', 'USRDIR', 'EBOOT.BIN')
+        if os.path.isfile(fallback):
+            eboot = fallback
+
+    sources = [
+        (sprx, os.path.join(usrdir, 'qDNSm.sprx')),
+        (eboot, os.path.join(usrdir, 'EBOOT.BIN')),
+    ]
+
+    for src, _ in sources:
+        if not os.path.isfile(src):
+            sys.stderr.write('[make-pkg] cannot stage %s: %s is missing\n'
+                             % (os.path.basename(src), src))
+            return False
+
+    os.makedirs(usrdir, exist_ok=True)
+    for src, dst in sources:
+        shutil.copy2(src, dst)
+        sys.stderr.write('[make-pkg] staged %s <- %s\n'
+                         % (os.path.relpath(dst, staging_dir),
+                            os.path.relpath(src, ROOT)))
+
+    for name in ('ICON0.PNG', 'PARAM.SFO'):
+        dst = os.path.join(staging_dir, name)
+        if os.path.exists(dst):
+            continue
+        src = os.path.join(HERE, 'assets', name)
+        if not os.path.isfile(src):
+            sys.stderr.write('[make-pkg] cannot stage %s: %s is missing\n'
+                             % (name, src))
+            return False
+        shutil.copy2(src, dst)
+        sys.stderr.write('[make-pkg] staged %s <- %s\n'
+                         % (name, os.path.relpath(src, ROOT)))
+    return True
+
+
 def _install_pkgcrypt():
     """Provide pkgcrypt. Prefer upstream's if it is present."""
     try:
@@ -116,16 +176,28 @@ def main():
         return 2
 
     args = sys.argv[1:]
+    no_stage = '--no-stage' in args
+    if no_stage:
+        args = [arg for arg in args if arg != '--no-stage']
 
     # Reject the failure mode above before pkg.py fails with a confusing
     # FileNotFoundError for /ICON0.PNG.
     for arg in args:
         if arg.endswith('.pkg') or arg.startswith('--'):
             continue
-        if os.path.isdir(arg) and not arg.endswith(('/', '\\')):
+        if not arg.endswith(('/', '\\')):
             sys.stderr.write(
                 'staging directory needs a trailing slash: %s -> %s/\n'
                 % (arg, arg))
+            return 2
+
+    positionals = [arg for arg in args if not arg.startswith('--')]
+    if not no_stage:
+        if len(positionals) < 2:
+            sys.stderr.write('usage: make-pkg.py [--no-stage] '
+                             '--contentid=<id> <staging-dir>/ <out.pkg>\n')
+            return 2
+        if not _stage_compiled(os.path.normpath(positionals[0])):
             return 2
 
     sys.path.insert(0, PKG_PY_DIR)
