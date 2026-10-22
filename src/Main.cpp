@@ -1,5 +1,6 @@
 #include <sys/prx.h>
 #include <sys/ppu_thread.h>
+#include <cell/cell_fs.h>
 #include <vsh/newDelete.hpp>
 #include <vsh/vshmain.hpp>
 #include "Utils/SystemCalls.hpp"
@@ -58,7 +59,13 @@ sys_ppu_thread_t gVshMenuPpuThreadId = SYS_PPU_THREAD_ID_INVALID;
 
 static const uint64_t kHenSettleMs = 3000;
 static const uint64_t kXmbStableMs = 3000;
-static const uint64_t kXmbWaitMaxMs = 30000;
+static const uint64_t kHenWaitMaxMs = 30000;
+
+static bool HenPluginIsRunning()
+{
+   CellFsStat stat;
+   return cellFsStat("/dev_hdd0/HENplugin.sprx", &stat) == CELL_FS_SUCCEEDED;
+}
 
 static bool IsXmbReady()
 {
@@ -70,6 +77,26 @@ static bool IsXmbReady()
 
 static void WaitForStableXmb()
 {
+   const bool isHen = IsConsoleHen();
+
+   /*
+    * HEN starts HENplugin.sprx and then loads boot plugins, so qDNSm can run
+    * while HEN's own thread is still working. HEN unlinks that file near the
+    * end of its thread. Wait for it before touching paf at all; if it is gone
+    * already (CFW, or a HEN version that does not use it), the stable-XMB
+    * window below is the fallback.
+    */
+   if (isHen && HenPluginIsRunning())
+   {
+      const uint64_t start = GetTimeNow();
+
+      while (HenPluginIsRunning() &&
+             (GetTimeNow() - start) < kHenWaitMaxMs)
+      {
+         Sleep(500);
+      }
+   }
+
    while (!paf::View::Find("explore_plugin"))
       Sleep(1000);
 
@@ -77,13 +104,13 @@ static void WaitForStableXmb()
     * Only HEN needs the extra wait. On CFW the explore view is the same
     * readiness signal the old code used, so behavior there is unchanged.
     */
-   if (!IsConsoleHen())
+   if (!isHen)
       return;
 
    const uint64_t start = GetTimeNow();
    uint64_t readySince = 0;
 
-   while ((GetTimeNow() - start) < kXmbWaitMaxMs)
+   while ((GetTimeNow() - start) < kHenWaitMaxMs)
    {
       if (!IsXmbReady())
       {
