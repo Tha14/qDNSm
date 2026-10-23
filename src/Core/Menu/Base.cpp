@@ -262,8 +262,9 @@ void Menu::UpdateButtons()
 {
     if (!m_StateOpened && (m_OpacityGlobal == 0.0)) // fully closed
     {
-        if (IsOpenPressed())
-        OnOpen();
+        if (IsOpenPressed() &&
+            vsh::GetCooperationMode() == vsh::CooperationMode::XMB)
+            OnOpen();
 
         WhileClosed();
     }
