@@ -1,10 +1,11 @@
 # qDNSm
 
-A quick DNS switcher for the PlayStation 3.
+A quick DNS switcher for the PlayStation 3. Change the DNS server you are using directly through the XMB within seconds.
 
 Pick a DNS server from a list and qDNSm writes it into the console's network
-configuration. It runs as a VSH plugin on the XMB, alongside webMAN, multiMAN and
-the rest of the homebrew menu stack.
+configuration. By default it also restarts the Internet Connection so the new DNS
+takes effect immediately. It runs as a VSH plugin on the XMB, alongside webMAN,
+multiMAN and the rest of the homebrew menu stack.
 
 ![qDNSm on the XMB](resources/qDNSm_menu_loop.webp)
 
@@ -12,30 +13,16 @@ Works on **CFW** and **PS3HEN**, on CEX, PEX, D-PEX and DEX-mode consoles.
 
 ## Contents
 
-- [The thing you have to know](#the-thing-you-have-to-know)
 - [Requirements](#requirements)
 - [Installing](#installing)
   - [With the installer (recommended)](#with-the-installer-recommended)
   - [Manually](#manually)
 - [Using it](#using-it)
+  - [Automatic DNS switching (default, recommended)](#automatic-dns-switching-default-recommended)
+  - [Manual Internet Connection toggling](#manual-internet-connection-toggling)
 - [Building from source](#building-from-source)
 - [LLM disclosure](#llm-disclosure)
 - [Credits](#credits)
-
----
-
-## The thing you have to know
-
-**qDNSm writes the DNS settings. The console still has to build a new connection
-to apply them.**
-
-So after picking a server you still need to manually do the following once:
-
-> Settings → Network → Internet Connection Settings →
-> **Disable Internet Connection** → **Enable Internet Connection**
-
-**Also make sure Set Manually is selected** — in automatic mode the console takes
-its DNS from DHCP and ignores what qDNSm wrote.
 
 ---
 
@@ -50,8 +37,9 @@ its DNS from DHCP and ignores what qDNSm wrote.
 
 ### With the installer (recommended)
 
-`qDNSm-Installer.pkg` installs the plugin for you. Get the latest version from the [releases page](https://github.com/Tha14/qDNSm/releases),
-Install it like any other package, launch **qDNSm installer** from the XMB, and it will:
+`qDNSm-Installer.pkg` installs the plugin for you. Get the latest version from the
+[releases page](https://github.com/Tha14/qDNSm/releases). Install it like any other
+package, launch **qDNSm installer** from the XMB, and it will:
 
 - copy `qDNSm.sprx` to `/dev_hdd0/plugins/qDNSm.sprx`
 - add it to `/dev_hdd0/boot_plugins.txt`
@@ -90,7 +78,8 @@ You can be holding down each of these buttons so triggering the menu open is pre
 
 ![qDNSm loaded](resources/qDNSm_loaded.png)
 
-The menu lists every server in your config. Selecting one applies it.
+The menu lists every server in your config. Selecting one applies it and, with
+**Auto reconnect** enabled (the default), restarts the Internet Connection.
 
 - **Square** — edit the highlighted server
 - **Triangle** — delete the highlighted server
@@ -103,9 +92,37 @@ Under **qDNSm options**:
 |---|---|
 | Secondary DNS | the secondary resolver paired with every server |
 | Startup notification | show a notification when the plugin loads |
-| How to use | the same instructions as above, in-app |
+| Auto reconnect | restart the Internet Connection after applying DNS; on by default |
+| How to use manually | the manual Internet Connection toggle steps, in-app |
 | About | version and credit |
 | Restore defaults | reset the server list to the shipped list |
+
+### Automatic DNS switching (default, recommended)
+
+qDNSm writes the DNS settings. The console still has to rebuild its connection to
+apply them — by default, qDNSm does that for you.
+
+1. Leave **Auto reconnect** on under **qDNSm options** (it is on by default).
+2. Pick a DNS server from the list.
+3. Wait for the `DNS was changed to <server>.` notification. qDNSm restarts the
+   Internet Connection for you.
+4. Start the game you want to play.
+
+> **If automatic reconnect fails:** open **qDNSm options**, turn **Auto reconnect**
+> off, select the server again, then follow the manual steps below.
+
+### Manual Internet Connection toggling
+
+Use this when **Auto reconnect** is off. The same steps are in **qDNSm options →
+How to use manually**.
+
+1. Pick a DNS server from the list.
+2. Go to **Settings > Network Settings**.
+3. Press X on **Internet Connection**.
+4. Select **Disable**.
+5. Press X on **Internet Connection** again.
+6. Select **Enable**.
+7. You're now using the DNS server you picked.
 
 ---
 
@@ -168,6 +185,17 @@ That takes `bin\Release-PS3\qDNSm.sprx` and
 `bin\Release-PS3\installer\EBOOT.BIN` as they are and puts them in
 `bin\Release-PS3\qDNSm-Installer.pkg`. It needs Python 3 and nothing else.
 
+On Linux, `packaging/make-pkg.py` does the same repackaging and stages the
+current binaries into the staging tree by default:
+
+```bash
+python3 packaging/make-pkg.py --contentid=UP0001-NPUB72381_00-0000000000000000 \
+    bin/Release-PS3/installer/pkgwork/NPUB72381/ \
+    bin/Release-PS3/qDNSm-Installer.pkg
+```
+
+Pass `--no-stage` when the staging tree has already been assembled.
+
 See [`installer_src/README.md`](installer_src/README.md) for details.
 
 ---
@@ -175,9 +203,10 @@ See [`installer_src/README.md`](installer_src/README.md) for details.
 ## LLM disclosure
 
 Most of this was written by hand, but an LLM helped with some of it — the documentation and
-some of the scripts, tracking down and fixing bugs, and looking into automating the network
-interface restart. That last one needed a lot more work than expected and may not be possible
-to make reliable on HEN, so it was dropped until someone can research it properly.
+some of the scripts, tracking down and fixing bugs, and implementing the automatic network
+interface restart. The LLM also helped write and run tests. The automatic reconnect work
+took a lot more work than expected; it now ships as **Auto reconnect**, with manual Internet
+Connection toggling retained as a fallback.
 
 ---
 
