@@ -1,6 +1,6 @@
 # qDNSm
 
-A quick DNS switcher for the PlayStation 3. Change the DNS server you are using on your PS3 directly through the XMB within seconds.
+A quick DNS manager/changer/switcher for the PlayStation 3. Change the DNS server you are using on your PS3 directly through the XMB within seconds.
 
 Pick a DNS server from a list and qDNSm writes it into the console's network
 configuration. By default it also restarts the Internet Connection so the new DNS
@@ -19,7 +19,7 @@ Works on **CFW** and **PS3HEN**, on CEX, PEX, D-PEX and DEX-mode consoles.
   - [Manually](#manually)
 - [Using it](#using-it)
   - [Automatic DNS switching (default, recommended)](#automatic-dns-switching-default-recommended)
-  - [Manual Internet Connection toggling](#manual-internet-connection-toggling)
+  - [Manual Internet Connection toggling (fallback)](#manual-internet-connection-toggling-fallback)
 - [Building from source](#building-from-source)
 - [LLM disclosure](#llm-disclosure)
 - [Credits](#credits)
@@ -111,7 +111,7 @@ apply them — by default, qDNSm does that for you.
 > **If automatic reconnect fails:** open **qDNSm options**, turn **Auto reconnect**
 > off, select the server again, then follow the manual steps below.
 
-### Manual Internet Connection toggling
+### Manual Internet Connection toggling (fallback)
 
 Use this when **Auto reconnect** is off. The same steps are in **qDNSm options →
 How to use manually**.
