@@ -55,6 +55,8 @@ installer_src/*.fake.self
 installer_src/*.pkg
 installer_src/*.gnpdrm.pkg
 
+packaging/pkgfiles/USRDIR/qDNSm.sprx
+
 __pycache__/
 *.pyc
 
@@ -68,8 +70,3 @@ vendor/makepkg/makepkg2.exe
 # exist on the machine that generated it, so it is noise in the repository.
 *.vcxproj.user
 
-# TODO.md - the running notes on everything that was tried and did not work,
-# mostly the network interface restart. Local working document, deliberately
-# not in the repository. Nothing in the tree refers to it; the source comments
-# carry the short form of what matters.
-TODO.md
