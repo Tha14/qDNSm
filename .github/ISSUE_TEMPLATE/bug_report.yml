@@ -1,0 +1,42 @@
+name: Bug report
+description: Report a problem with qDNSm.
+title: "[Bug]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Describe the problem
+      description: What happened, and what did you expect to happen?
+    validations:
+      required: true
+
+  - type: input
+    id: firmware
+    attributes:
+      label: PS3 firmware version
+      description: Include the CFW or HEN version.
+      placeholder: 4.89 CFW / 4.93 HEN
+    validations:
+      required: true
+
+  - type: input
+    id: plugins
+    attributes:
+      label: Other homebrew plugins
+      description: Plugins loaded at the same time, such as xpad or webMAN MOD.
+      placeholder: None / webMAN MOD / xpad
+    validations:
+      required: true
+
+  - type: dropdown
+    id: without_plugins
+    attributes:
+      label: Does the issue appear without other plugins loaded?
+      description: Answer only if you use other plugins; otherwise choose Not applicable.
+      options:
+        - "Yes"
+        - "No"
+        - "Not tested"
+        - "Not applicable"
+    validations:
+      required: true

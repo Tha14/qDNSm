@@ -1,0 +1,11 @@
+name: Question
+description: Ask a question about qDNSm.
+title: "[Question]: "
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: Include any details that might help us answer.
+    validations:
+      required: true
