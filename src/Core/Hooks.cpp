@@ -2,6 +2,7 @@
 #include "Memory/Pattern.hpp"
 #include "Menu/Base.hpp"
 #include "Menu/Submenus.hpp"   // UpdateDnsFlow
+#include "Network.hpp"
 #include "InputUi.hpp"
 #include <cell/pad/pad_codes.h>
 
@@ -23,6 +24,7 @@ void pafFrameworkBeginHook(void* framework, float frameTime)
 
     g_Helpers.OnUpdate();
     g_Renderer.OnUpdate();
+    g_Menu.SetBusyState(IsDnsApplyBusy(), GetDnsApplyPhase() == DnsApply_Reconnecting);
     g_Menu.OnUpdate();
 
     /*

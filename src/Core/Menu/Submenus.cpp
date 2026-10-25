@@ -25,6 +25,11 @@
  * Kept out rather than deleted wholesale so the warning does not come back if someone re-adds a
  * diagnostic build. */
 
+static void NotifyError(const std::wstring& message)
+{
+	vsh::ShowNotificationWithIcon(message, vsh::NotifyIcon::Caution, vsh::NotifySound::Error);
+}
+
 void ApplyDnsServer(size_t index)
 {
 	DnsServerEntry* entry = g_Config.GetServer(index);
@@ -34,30 +39,53 @@ void ApplyDnsServer(size_t index)
 	if (entry->primary.empty())
 		return;
 
+	if (!BeginDnsApply())
+		return;
+
 	const std::string& secondary = g_Config.m_Settings.secondaryDns;
 	const std::string nameAscii = WideToAscii(entry->name);
 	const std::string displayName = nameAscii.empty() ? entry->primary : nameAscii;
+	const bool reconnect = g_Config.m_Settings.autoReconnect;
 
+	if (reconnect)
+		g_Menu.SetBusyState(true, false);
 
 	ApplyDnsServers(entry->primary, secondary);
-	WriteDeviceNetworkConfig(0, entry->primary, secondary);
+	int write = WriteDeviceNetworkConfig(0, entry->primary, secondary);
 
-	if (g_Config.m_Settings.autoReconnect)
-		RequestReconnect(displayName);
+	if (write != 0)
+	{
+		EndDnsApply();
+		g_Menu.SetBusyState(false, false);
+		NotifyError(L"Failed to write DNS settings.");
+		return;
+	}
 
-	std::string message = "DNS set to ";
-	message += displayName;
+	if (!reconnect)
+	{
+		EndDnsApply();
 
-	if (g_Config.m_Settings.autoReconnect)
-		message += ".\nReconnecting...";
-	else
+		std::string message = "DNS set to ";
+		message += displayName;
 		message += ".\nDisable, then Enable Internet Connection.";
 
-	std::wstring wideMessage;
-	AsciiToWide(wideMessage, message);
+		std::wstring wideMessage;
+		AsciiToWide(wideMessage, message);
 
-	vsh::ShowNotificationWithIcon(wideMessage, vsh::NotifyIcon::BlueVerifiedCheckmark,
-		vsh::NotifySound::OK);
+		vsh::ShowNotificationWithIcon(wideMessage, vsh::NotifyIcon::BlueVerifiedCheckmark,
+			vsh::NotifySound::OK);
+		return;
+	}
+
+	if (!RequestReconnect(displayName))
+	{
+		EndDnsApply();
+		g_Menu.SetBusyState(false, false);
+		NotifyError(L"DNS was written, but the reconnect could not start.");
+		return;
+	}
+
+	g_Menu.SetBusyState(true, true);
 }
 
 static void Notify(const std::wstring& message, vsh::NotifySound sound)

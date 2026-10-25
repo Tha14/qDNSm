@@ -2,6 +2,18 @@
 
 #include <string>
 
+enum DnsApplyPhase
+{
+	DnsApply_Idle,
+	DnsApply_Applying,
+	DnsApply_Reconnecting
+};
+
+bool BeginDnsApply();
+void EndDnsApply();
+bool IsDnsApplyBusy();
+DnsApplyPhase GetDnsApplyPhase();
+
 /*
  * Write both DNS servers through the per-field setters.
  *
@@ -31,7 +43,7 @@ int WriteDeviceNetworkConfig(int device, const std::string& primary, const std::
  * Ask the worker to take the connection down and bring it back up with the servers that
  * were just written. The server's name is kept for the completion notification.
  */
-void RequestReconnect(const std::string& serverName);
+bool RequestReconnect(const std::string& serverName);
 
 /* Starts the worker that services RequestReconnect(). Call once, at startup. */
 void StartManualDnsWorker();

@@ -44,9 +44,13 @@ public:
     void Rectangle(paf::vec2 position, paf::vec2 size, paf::vec4 color, Align horizontalAlign = Left, Align verticalAlign = Top, const char* systemTexture = nullptr, float angle = 0.0, bool useRadian = false);
 
     void Text(std::wstring const& text, paf::vec2 position, float height, paf::vec4 color, Align horizontalAlign = Left, Align verticalAlign = Top, float angle = 0.0, bool drawShadow = true, GlyphSet glyphSet = GlyphSet_Default);
+    void RectangleOnTop(paf::vec2 position, paf::vec2 size, paf::vec4 color, Align horizontalAlign = Left, Align verticalAlign = Top);
+    void TextOnTop(std::wstring const& text, paf::vec2 position, float height, paf::vec4 color, Align horizontalAlign = Left, Align verticalAlign = Top);
 
 
 private:
+    void TextImpl(std::wstring const& text, paf::vec2 position, float height, paf::vec4 color, Align horizontalAlign, Align verticalAlign, float angle, bool drawShadow, GlyphSet glyphSet, bool onTop);
+
     void DestroyUnusedWidgets();
     void HideWidgets();
 
@@ -55,9 +59,10 @@ private:
     paf::PhPlane* CreatePlane(paf::PhWidget* parent = g_Helpers.m_PageAutoOffGuide);
 
     paf::PhText* GetCurrentText();
+    paf::PhText* GetCurrentTopText();
     paf::PhPlane* GetCurrentPlane();
 
-    void TrimPool(int keepText, int keepPlane);
+    void TrimPool(int keepText, int keepPlane, int keepTopText);
     void ForgetWidgets();
 
     void ViewportScale(paf::vec2& vec);
@@ -70,15 +75,18 @@ public:
     float m_ViewportHeight{ 720.0f };
 
     int m_CurrentText{};
+    int m_CurrentTopText{};
     int m_CurrentPlane{};
 
     std::vector<paf::PhText*> m_TextNodeChilds{};
+    std::vector<paf::PhText*> m_TopTextNodeChilds{};
     std::vector<paf::PhPlane*> m_PlaneNodeChilds{};
 
     paf::PhPlane* m_TextNode{};
     paf::PhPlane* m_PlaneNode{};
 
     paf::PhPlane* m_PlaneOnTop{};
+    paf::PhPlane* m_TextOnTop{};
 
 private:
     /*

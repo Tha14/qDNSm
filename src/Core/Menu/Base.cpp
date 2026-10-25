@@ -23,6 +23,23 @@ void Menu::SetMovingState(bool state)
     stateMoving = state;
 }
 
+void Menu::SetBusyState(bool busy, bool reconnecting)
+{
+    m_InputLocked = busy;
+    m_BusyReconnecting = reconnecting;
+}
+
+bool Menu::IsInputLocked() const
+{
+    return m_InputLocked;
+}
+
+paf::vec4 Menu::ListTextColor() const
+{
+    return paf::vec4(colorText.r, colorText.g, colorText.b,
+        m_OpacityText * (m_InputLocked ? 0.35f : 1.0f));
+}
+
 bool Menu::IsInitialized()
 {
    return m_StateInitialized;
@@ -136,7 +153,7 @@ bool Menu::IsLeftOrRightPressed()
 bool Menu::IsHovered()
 {
    /* An off-screen row must not answer to the buttons. */
-   return IsOpened() && IsVisible(m_Selection, maxOptionsPerPage) && (m_Selection.option == m_PrintingOption);
+   return !m_InputLocked && IsOpened() && IsVisible(m_Selection, maxOptionsPerPage) && (m_Selection.option == m_PrintingOption);
 }
 
 bool Menu::IsPressed()
@@ -260,6 +277,30 @@ void Menu::ChangeSubmenu(Function submenu)
 
 void Menu::UpdateButtons()
 {
+    if (m_InputLocked)
+    {
+        if (!m_StateOpened && (m_OpacityGlobal == 0.0))
+        {
+            if (IsOpenPressed() &&
+                vsh::GetCooperationMode() == vsh::CooperationMode::XMB)
+                OnOpen();
+
+            WhileClosed();
+        }
+        else if (m_StateOpened && (m_OpacityText == 1.0))
+        {
+            if (IsBackPressed())
+            {
+                if (m_CurrentMenu == m_MainMenu)
+                    OnClose();
+                else
+                    OnBack();
+            }
+        }
+
+        return;
+    }
+
     if (!m_StateOpened && (m_OpacityGlobal == 0.0)) // fully closed
     {
         if (IsOpenPressed() &&
@@ -290,6 +331,9 @@ void Menu::UpdateButtons()
 
 void Menu::UpdatePosition()
 {
+   if (m_InputLocked)
+      return;
+
    if (stateMoving)
    {
       double stickX = g_Input.GetRightAnalogX();
@@ -417,6 +461,7 @@ void Menu::UpdateUI()
 
       DrawFooter();
       DrawDescription();
+      DrawBusyOverlay();
    }
 
 }
@@ -529,7 +574,9 @@ void Menu::DrawFooter()
 
 	// Instructions under the footer
 	g_Renderer.Text(
-		L"Actions for the selected entry:\n\uF881: Apply | \uF882: Edit | \uF883: Delete",
+		m_InputLocked
+			? L"Please wait...\n\uF880: Close"
+			: L"Actions for the selected entry:\n\uF881: Apply | \uF882: Edit | \uF883: Delete",
 		paf::vec2(position.x - sizeWidth / 2 + m_SizeBackgroundSpace / 4, position.y - m_SizeBackground / 1.65 - sizeText / 1.8),
 		sizeText / 1.14,
 		paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
@@ -560,6 +607,54 @@ void Menu::DrawDescription()
         Renderer::Centered);
 }
 
+void Menu::DrawBusyOverlay()
+{
+    if (!m_InputLocked || !m_StateOpened || (m_SizeBackground < 56.0f))
+        return;
+
+    const wchar_t* dots[] = { L"", L".", L"..", L"..." };
+    int dot = static_cast<int>((GetTimeNow() / 350) % 4);
+    std::wstring wait = L"Please wait";
+    wait += dots[dot];
+
+    g_Renderer.Rectangle(
+        position,
+        paf::vec2(sizeWidth, m_SizeBackground),
+        paf::vec4(0.0f, 0.0f, 0.0f, 0.65f * m_OpacityText),
+        Renderer::Centered,
+        Renderer::Centered);
+
+    g_Renderer.RectangleOnTop(
+        position,
+        paf::vec2(sizeWidth - 20.0f, 56.0f),
+        paf::vec4(0.0f, 0.0f, 0.0f, 0.80f * m_OpacityText),
+        Renderer::Centered,
+        Renderer::Centered);
+
+    g_Renderer.Rectangle(
+        paf::vec2(position.x, position.y + 27.0f),
+        paf::vec2(sizeWidth - 20.0f, 2.0f),
+        paf::vec4(colorMenu.r, colorMenu.g, colorMenu.b, 0.90f * m_OpacityText),
+        Renderer::Centered,
+        Renderer::Centered);
+
+    g_Renderer.TextOnTop(
+        m_BusyReconnecting ? L"Reconnecting..." : L"Applying DNS...",
+        paf::vec2(position.x, position.y + 9.0f),
+        sizeText / 1.15f,
+        paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
+        Renderer::Centered,
+        Renderer::Centered);
+
+    g_Renderer.TextOnTop(
+        wait,
+        paf::vec2(position.x, position.y - 10.0f),
+        sizeText / 1.45f,
+        paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
+        Renderer::Centered,
+        Renderer::Centered);
+}
+
 void Menu::DrawMenuOption(const std::wstring& text)
 {
     if ((m_PrintingOption >= m_Selection.index) && (m_PrintingOption < (m_Selection.index + maxOptionsPerPage)))
@@ -569,7 +664,7 @@ void Menu::DrawMenuOption(const std::wstring& text)
             paf::vec2(position.x - sizeWidth / 2 + m_SizeBackgroundSpace / 2,
                 position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_Selection.index) * sizeText - sizeText / 2),
             sizeText,
-            paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
+            ListTextColor(),
             Renderer::Left,
             Renderer::Centered);
     }
@@ -638,7 +733,7 @@ void Menu::DrawMenuStringOption(const std::wstring& item)
             paf::vec2(position.x + sizeWidth / 2 - m_SizeBackgroundSpace / 2,
                 position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_Selection.index) * sizeText - sizeText / 2),
             sizeText,
-            paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
+            ListTextColor(),
             Renderer::Right,
             Renderer::Centered);
     }
@@ -713,7 +808,7 @@ Menu& Menu::RightText(const std::wstring& text)
                 position.x + sizeWidth / 2 - m_SizeBackgroundSpace / 2,
                 position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_Selection.index) * sizeText - sizeText / 2),
             sizeText,
-            paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
+            ListTextColor(),
             Renderer::Right,
             Renderer::Centered);
     }
@@ -765,7 +860,7 @@ Menu& Menu::Strings(const std::vector<std::wstring>& items, int& index)
                 position.x + sizeWidth / 2 - m_SizeBackgroundSpace / 2,
                 position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_Selection.index) * sizeText - sizeText / 2),
             sizeText,
-            paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
+            ListTextColor(),
             Renderer::Right,
             Renderer::Centered);
         return *this;

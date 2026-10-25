@@ -241,8 +241,33 @@ int WriteDeviceNetworkConfig(int device, const std::string& primary, const std::
 
 static volatile bool s_ReconnectRequested = false;
 static volatile bool s_ReconnectRunning = false;
+static volatile int s_DnsApplyPhase = DnsApply_Idle;
 static bool s_NetctlInitialized = false;
 static char s_ReconnectName[64] = {};
+
+bool IsDnsApplyBusy()
+{
+	return (s_DnsApplyPhase != DnsApply_Idle) || s_ReconnectRunning;
+}
+
+bool BeginDnsApply()
+{
+	if (IsDnsApplyBusy())
+		return false;
+
+	s_DnsApplyPhase = DnsApply_Applying;
+	return true;
+}
+
+void EndDnsApply()
+{
+	s_DnsApplyPhase = DnsApply_Idle;
+}
+
+DnsApplyPhase GetDnsApplyPhase()
+{
+	return static_cast<DnsApplyPhase>(s_DnsApplyPhase);
+}
 
 static void ShowReconnectFailure(bool willFail)
 {
@@ -268,6 +293,7 @@ static void NetworkThread(uint64_t)
 	{
 		ShowReconnectFailure(true);
 		s_ReconnectRunning = false;
+		s_DnsApplyPhase = DnsApply_Idle;
 		sys_ppu_thread_exit(0);
 	}
 
@@ -328,6 +354,7 @@ static void NetworkThread(uint64_t)
 	}
 
 	s_ReconnectRunning = false;
+	s_DnsApplyPhase = DnsApply_Idle;
 	sys_ppu_thread_exit(0);
 }
 
@@ -352,16 +379,17 @@ static void ReconnectStep()
 	if (createResult != 0)
 	{
 		s_ReconnectRunning = false;
+		s_DnsApplyPhase = DnsApply_Idle;
 		ShowReconnectFailure(false);
 	}
 }
 
-void RequestReconnect(const std::string& serverName)
+bool RequestReconnect(const std::string& serverName)
 {
 
-	if (s_ReconnectRunning)
+	if (s_ReconnectRunning || !s_PendingConnectConfigReady)
 	{
-		return;
+		return false;
 	}
 
 	vsh::memset(s_ReconnectName, 0, sizeof(s_ReconnectName));
@@ -369,6 +397,8 @@ void RequestReconnect(const std::string& serverName)
 
 	s_ReconnectRunning = true;
 	s_ReconnectRequested = true;
+	s_DnsApplyPhase = DnsApply_Reconnecting;
+	return true;
 }
 
 static void ManualDnsWorker(uint64_t)

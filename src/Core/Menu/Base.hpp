@@ -21,6 +21,8 @@ public:
    bool IsOpened();
    bool IsMoving();
    void SetMovingState(bool state);
+   void SetBusyState(bool busy, bool reconnecting);
+   bool IsInputLocked() const;
    void OnUpdate();
 
    Menu& Option(const std::wstring& text);
@@ -119,6 +121,9 @@ private:
    void DrawHighlightBar();
    void DrawFooter();
    void DrawDescription();
+   void DrawBusyOverlay();
+
+   paf::vec4 ListTextColor() const;
 
    void DrawMenuOption(const std::wstring& text);
    void DrawMenuToggle(bool var);
@@ -174,6 +179,8 @@ public:
 private:
    bool m_StateInitialized{};
    bool m_StateOpened{};
+   bool m_InputLocked{};
+   bool m_BusyReconnecting{};
 
    Function m_OnMain{};
    Function m_MainMenu{};

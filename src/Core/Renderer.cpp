@@ -17,9 +17,10 @@ void Renderer::OnUpdate()
      * bulk of the module's heap - so whatever the last frame did not use goes back now, on
      * this thread, where deleting paf widgets is safe.
      */
-    TrimPool(m_CurrentText, m_CurrentPlane);
+    TrimPool(m_CurrentText, m_CurrentPlane, m_CurrentTopText);
 
     m_CurrentText = 0;
+    m_CurrentTopText = 0;
     m_CurrentPlane = 0;
 
     /*
@@ -43,26 +44,37 @@ void Renderer::OnUpdate()
     // check if our widgets are still allocated
     if (m_PlaneOnTop)
     {
-        if (!m_PlaneOnTop->IsAttached())
+        if (!m_PlaneOnTop->IsAttached() || !m_TextOnTop || !m_TextOnTop->IsAttached())
         {
             DestroyWidgets();
             return;
         }
     }
     else
+    {
         CreateGroups();
+
+        if (!m_PlaneNode || !m_TextNode || !m_PlaneOnTop || !m_TextOnTop)
+            return;
+    }
 
     DestroyUnusedWidgets();
     HideWidgets();
     m_CanDraw = true;
 }
 
-void Renderer::TrimPool(int keepText, int keepPlane)
+void Renderer::TrimPool(int keepText, int keepPlane, int keepTopText)
 {
     while (static_cast<int>(m_TextNodeChilds.size()) > keepText)
     {
         delete m_TextNodeChilds.back();
         m_TextNodeChilds.pop_back();
+    }
+
+    while (static_cast<int>(m_TopTextNodeChilds.size()) > keepTopText)
+    {
+        delete m_TopTextNodeChilds.back();
+        m_TopTextNodeChilds.pop_back();
     }
 
     while (static_cast<int>(m_PlaneNodeChilds.size()) > keepPlane)
@@ -81,13 +93,16 @@ void Renderer::ForgetWidgets()
     m_CanDraw = false;
 
     m_TextNodeChilds.clear();
+    m_TopTextNodeChilds.clear();
     m_PlaneNodeChilds.clear();
 
     m_TextNode = nullptr;
     m_PlaneNode = nullptr;
     m_PlaneOnTop = nullptr;
+    m_TextOnTop = nullptr;
 
     m_CurrentText = 0;
+    m_CurrentTopText = 0;
     m_CurrentPlane = 0;
 }
 
@@ -99,6 +114,10 @@ void Renderer::DestroyWidgets()
     for (auto text : m_TextNodeChilds)
         delete text;
     m_TextNodeChilds.clear();
+
+    for (auto text : m_TopTextNodeChilds)
+        delete text;
+    m_TopTextNodeChilds.clear();
 
     for (auto plane : m_PlaneNodeChilds)
         delete plane;
@@ -115,6 +134,12 @@ void Renderer::DestroyWidgets()
     {
         delete m_PlaneNode;
         m_PlaneNode = nullptr;
+    }
+
+    if (m_TextOnTop)
+    {
+        delete m_TextOnTop;
+        m_TextOnTop = nullptr;
     }
 
     if (m_PlaneOnTop)
@@ -140,6 +165,15 @@ void Renderer::DestroyUnusedWidgets()
         }
     }
 
+    for (int i = static_cast<int>(m_TopTextNodeChilds.size()) - 1; i >= 0; i--)
+    {
+        if (m_TopTextNodeChilds[i]->colorScale.a == 0.0)
+        {
+            delete m_TopTextNodeChilds[i];
+            m_TopTextNodeChilds.erase(m_TopTextNodeChilds.begin() + i);
+        }
+    }
+
     for (int i = static_cast<int>(m_PlaneNodeChilds.size()) - 1; i >= 0; i--)
     {
         if (m_PlaneNodeChilds[i]->colorScale.a == 0.0)
@@ -155,10 +189,17 @@ void Renderer::HideWidgets()
     for (auto text : m_TextNodeChilds)
         text->ClearColor();
 
+    for (auto text : m_TopTextNodeChilds)
+        text->ClearColor();
+
     for (auto plane : m_PlaneNodeChilds)
         plane->ClearColor();
 
-    m_PlaneOnTop->ClearColor();
+    if (m_PlaneOnTop)
+        m_PlaneOnTop->ClearColor();
+
+    if (m_TextOnTop)
+        m_TextOnTop->ClearColor();
 }
 
 void Renderer::CreateGroups()
@@ -174,6 +215,17 @@ void Renderer::CreateGroups()
 
     m_TextNode = CreatePlane();
     m_PlaneOnTop = CreatePlane();
+    m_TextOnTop = CreatePlane();
+
+    if (!m_TextNode || !m_PlaneOnTop || !m_TextOnTop)
+    {
+        DestroyWidgets();
+        return;
+    }
+
+    m_Parent->ReorderChildren(m_PlaneNode, m_TextNode, 0x100);
+    m_Parent->ReorderChildren(m_TextNode, m_PlaneOnTop, 0x100);
+    m_Parent->ReorderChildren(m_PlaneOnTop, m_TextOnTop, 0x100);
 }
 
 paf::PhText* Renderer::CreateText(paf::PhWidget* parent)
@@ -217,6 +269,32 @@ paf::PhText* Renderer::GetCurrentText()
     }
 
     m_CurrentText++;
+    return currentText;
+}
+
+paf::PhText* Renderer::GetCurrentTopText()
+{
+    if (!m_TextOnTop)
+        return nullptr;
+
+    if (m_TopTextNodeChilds.size() <= m_CurrentTopText)
+    {
+        paf::PhText* text = CreateText(m_TextOnTop);
+        if (!text)
+            return nullptr;
+
+        m_TopTextNodeChilds.push_back(text);
+    }
+
+    paf::PhText* currentText = m_TopTextNodeChilds[m_CurrentTopText];
+
+    if (m_CurrentTopText)
+    {
+        paf::PhText* previousText = m_TopTextNodeChilds[m_CurrentTopText - 1];
+        m_TextOnTop->ReorderChildren(previousText, currentText, 0x100);
+    }
+
+    m_CurrentTopText++;
     return currentText;
 }
 
@@ -290,12 +368,39 @@ void Renderer::Rectangle(paf::vec2 position, paf::vec2 size, paf::vec4 color, Al
     }
 }
 
+void Renderer::RectangleOnTop(paf::vec2 position, paf::vec2 size, paf::vec4 color, Align horizontalAlign, Align verticalAlign)
+{
+    if (!m_CanDraw || color.a <= 0.0 || !m_PlaneOnTop)
+        return;
+
+    ViewportScale(position);
+    ViewportScale(size);
+
+    m_PlaneOnTop->SetPosition(position)
+        .SetSize(size)
+        .SetColor(color)
+        .SetRotation(0.0f, false)
+        .SetStyle(paf::PhWidget::Anchor, int(horizontalAlign | verticalAlign));
+
+    m_PlaneOnTop->SetTexture(paf::SurfacePtr(), 0);
+}
+
 void Renderer::Text(std::wstring const& text, paf::vec2 position, float height, paf::vec4 color, Align horizontalAlign, Align verticalAlign, float angle, bool drawShadow, GlyphSet glyphSet)
+{
+    TextImpl(text, position, height, color, horizontalAlign, verticalAlign, angle, drawShadow, glyphSet, false);
+}
+
+void Renderer::TextOnTop(std::wstring const& text, paf::vec2 position, float height, paf::vec4 color, Align horizontalAlign, Align verticalAlign)
+{
+    TextImpl(text, position, height, color, horizontalAlign, verticalAlign, 0.0f, true, GlyphSet_Default, true);
+}
+
+void Renderer::TextImpl(std::wstring const& text, paf::vec2 position, float height, paf::vec4 color, Align horizontalAlign, Align verticalAlign, float angle, bool drawShadow, GlyphSet glyphSet, bool onTop)
 {
     if (!m_CanDraw || color.a <= 0.0)
         return;
 
-    paf::PhText* label = GetCurrentText();
+    paf::PhText* label = onTop ? GetCurrentTopText() : GetCurrentText();
 
     if (label)
     {
