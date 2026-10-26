@@ -1,0 +1,92 @@
+name: DNS Server or Supported Games Change
+description: Suggest an addition, update, or removal for the DNS server list or supported games catalogue.
+title: "[DNS/Games]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for changes to the DNS server list or the supported games catalogue.
+        A source is required for every change.
+
+  - type: dropdown
+    id: change_type
+    attributes:
+      label: Change type
+      options:
+        - Add
+        - Update
+        - Remove
+    validations:
+      required: true
+
+  - type: dropdown
+    id: data_type
+    attributes:
+      label: What are you changing?
+      options:
+        - DNS server entry
+        - Supported games list
+        - Both
+    validations:
+      required: true
+
+  - type: input
+    id: server_name
+    attributes:
+      label: Server or project name
+      description: The name shown in qDNSm, for example PS Rewired or PS3 Reborn.
+      placeholder: PS Rewired
+    validations:
+      required: true
+
+  - type: input
+    id: primary_ip
+    attributes:
+      label: Primary DNS IP
+      description: The IPv4 address used by this server and as the section key in the game catalogue.
+      placeholder: 123.123.123.123
+    validations:
+      required: true
+
+  - type: textarea
+    id: changes
+    attributes:
+      label: Proposed changes
+      description: |
+        For a DNS server change, list the exact name and IP to add, update, or remove.
+        For a supported-games change, list the exact game titles to add, update, or remove.
+        Include the current values when updating or removing.
+      placeholder: |
+        Add:
+        - Game title
+
+        Update:
+        - Old title -> New title
+
+        Remove:
+        - Game title
+    validations:
+      required: true
+
+  - type: textarea
+    id: source
+    attributes:
+      label: Source (required)
+      description: |
+        Link, screenshot, or quote showing the server name and IP and, for game changes, the exact titles.
+        Attach screenshots directly to this issue.
+      placeholder: https://... or a short quote from the project's page
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I checked the existing DNS list or game catalogue for duplicates.
+          required: true
+        - label: I provided a source for this exact change.
+          required: true
+        - label: If this changes game titles, they are written exactly as they should appear in qDNSm.
+          required: true
