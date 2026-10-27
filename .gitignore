@@ -70,8 +70,8 @@ launcher_src/*.fake.self
 launcher_src/*.pkg
 launcher_src/*.gnpdrm.pkg
 
-packaging/pkgfiles/USRDIR/qDNSm.sprx
-packaging/launcher-pkgfiles/USRDIR/
+packaging/pkgfiles/USRDIR/*
+packaging/launcher-pkgfiles/USRDIR/*
 
 __pycache__/
 *.pyc
