@@ -3,7 +3,8 @@
 Source for the qDNSm installer EBOOT and its PKG. Self-contained: everything needed
 to build is either here or in `vendor/PSL1GHT`.
 
-The installer installs `qDNSm.sprx` into `/dev_hdd0/plugins/` and registers it in
+The installer installs `qDNSm.sprx`, `qDNSmNetLib.sprx` and
+`qDNSm-server-games.ini` into `/dev_hdd0/plugins/` and registers the plugin in
 `/dev_hdd0/boot_plugins.txt`, with an option to uninstall or update.
 
 ## Build
@@ -16,7 +17,8 @@ docker run --rm -v "$PWD:/work" ps3dev/ps3dev:submodules bash -lc \
   'export PSL1GHT=/usr/local/ps3dev PS3DEV=/usr/local/ps3dev && cd /work/installer_src && make pkg'
 ```
 
-Output lands in `installer_src/installer.pkg`.
+Output lands in `../bin/Release-PS3/qDNSm-Installer.pkg`. The build also leaves
+`installer_src/installer.pkg` as the intermediate.
 
 Host tests, which do not need the container:
 
@@ -49,8 +51,10 @@ Signing the ELF by hand instead of using this chain produces an EBOOT that will 
 load, because `strip` and `sprx_tool` are part of it. **Do not call
 `make_self_npdrm` directly.**
 
-The payload `qDNSm.sprx` is copied from `../bin/Release-PS3/qDNSm.sprx`, so build the
-plugin first — it is a separate, SNC/Visual Studio project (`qDNSm.sln`).
+The payloads are copied from `../bin/Release-PS3/qDNSm.sprx`,
+`../bin/Release-PS3/qDNSmNetLib.sprx` and `../data/qDNSm-server-games.ini`, so build
+the plugin and its network module first — they are separate SNC/Visual Studio
+projects (`qDNSm.sln`).
 
 `APPID` and `CONTENTID` are set in the `Makefile` and must agree with each other and
 with the `PARAM.SFO` the build generates.

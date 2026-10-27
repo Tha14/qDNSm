@@ -54,6 +54,7 @@ namespace Small
     const size_t kMaxPath      = 512;
     const size_t kMaxText      = 64 * 1024;    /* boot_plugins.txt */
     const size_t kMaxPayload   = 1024 * 1024;  /* qDNSm.sprx, ~45 KB in practice */
+    const size_t kMaxFile      = 2 * 1024 * 1024;
     const size_t kMaxLines     = 512;
 
     const size_t kNpos = (size_t)-1;

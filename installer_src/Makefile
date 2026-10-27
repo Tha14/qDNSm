@@ -30,8 +30,9 @@ endif
 
 include $(PSL1GHT)/ppu_rules
 
-# Pinned rather than $(notdir $(CURDIR)), so the artifact stays named
-# installer.pkg wherever this tree lives.
+# Pinned rather than $(notdir $(CURDIR)), so the build intermediate stays named
+# installer.pkg wherever this tree lives. The pkg target copies it to
+# bin/Release-PS3/qDNSm-Installer.pkg, which is the shipping name.
 TARGET		:=	installer
 BUILD		:=	build
 SOURCES		:=	.
@@ -57,7 +58,10 @@ CONTENTID	:=	UP0001-$(APPID)_00-0000000000000000
 PKGFILES	:=	$(CURDIR)/../packaging/pkgfiles
 ICON0		:=	$(CURDIR)/../packaging/assets/ICON0.PNG
 PAYLOAD		:=	$(CURDIR)/../bin/Release-PS3/qDNSm.sprx
+NETLIB		:=	$(CURDIR)/../bin/Release-PS3/qDNSmNetLib.sprx
+GAMES		:=	$(CURDIR)/../data/qDNSm-server-games.ini
 EBOOT		:=	$(CURDIR)/../bin/Release-PS3/installer/EBOOT.BIN
+PKG_OUT		:=	$(CURDIR)/../bin/Release-PS3/qDNSm-Installer.pkg
 
 CFLAGS		=	-O2 -Wall -mcpu=cell $(MACHDEP) $(INCLUDE)
 CXXFLAGS	=	$(CFLAGS) -DQDNSM_PSL1GHT
@@ -111,20 +115,29 @@ $(BUILD):
 #   - a PARAM.SFO copied from Apollo's package and edited by hand, whose
 #     structural offsets had never been validated by the sfo tool
 #
-# Staging the payload first: the installer reads qDNSm.sprx from its own USRDIR,
-# so it has to ship beside the EBOOT or Install() has nothing to copy.
+# Staging the payloads first: the installer reads qDNSm.sprx, qDNSmNetLib.sprx and
+# qDNSm-server-games.ini from its own USRDIR, so they have to ship beside the
+# EBOOT or Install() has nothing to copy.
 # Depends on $(BUILD), not $(OUTPUT).self: compilation happens in the build/
 # sub-make, and asking the outer Makefile for $(OUTPUT).elf directly skips it
 # and fails the link with "undefined reference to `.main`".
 pkg: $(BUILD)
 	@mkdir -p $(PKGFILES)/USRDIR
 	@cp $(PAYLOAD) $(PKGFILES)/USRDIR/qDNSm.sprx
+	@cp $(NETLIB) $(PKGFILES)/USRDIR/qDNSmNetLib.sprx
+	@cp $(GAMES) $(PKGFILES)/USRDIR/qDNSm-server-games.ini
 	@$(MAKE) --no-print-directory $(OUTPUT).pkg
-	@mkdir -p $(dir $(EBOOT))
+	@mkdir -p $(dir $(EBOOT)) $(dir $(PKG_OUT))
+	@cp $(OUTPUT).pkg $(PKG_OUT)
 	@cp $(BUILDDIR)/pkg/USRDIR/EBOOT.BIN $(EBOOT)
 	@grep -q 'NPD' $(EBOOT) || { echo "ERROR: the EBOOT carries no NPD block."; echo "       The console rejects an EBOOT without one, with SCE_NP_DRM_ERROR_FORMAT"; echo "       (80029530), and it does so as \"Corrupted Data\"."; exit 1; }
 	@grep -q '$(CONTENTID)' $(EBOOT) || { echo "ERROR: the EBOOT does not carry the content ID $(CONTENTID)."; exit 1; }
 	@echo "EBOOT ready: $(EBOOT)"
+	@echo "Package ready: $(PKG_OUT)"
+
+# ppu_rules only makes the package depend on the SELF, so a payload rebuild
+# leaves the old package in place. Depend on the payloads directly.
+$(OUTPUT).pkg: $(PAYLOAD) $(NETLIB) $(GAMES)
 
 # Wrap the ELF in a SELF. PSL1GHT's base_rules provide this; it is stated here so
 # the dependency is visible rather than inherited.

@@ -9,16 +9,16 @@ namespace
     const int kFlagsWrite = CELL_FS_O_WRONLY | CELL_FS_O_CREAT | CELL_FS_O_TRUNC;
 
     /* Scratch used only by WriteBinaryStaged to hold the previous contents for
-     * rollback. File scope, not the caller's: it is a megabyte, so it cannot go
+     * rollback. File scope, not the caller's: it is megabytes, so it cannot go
      * on the stack, and only one staged write is ever in flight. */
-    static uint8_t g_rollback[Small::kMaxPayload];
+    static uint8_t g_rollback[Small::kMaxFile];
     static Small::Bytes g_rollbackView;
 
     /* Storage for the read-back verification in WriteBinaryVerified.
      *
      * Never named directly: g_verifyView.Attach below takes its address, and
      * SNC warning 178 only fires for variables with no reference at all. */
-    static uint8_t g_verifyBuf[Small::kMaxPayload];
+    static uint8_t g_verifyBuf[Small::kMaxFile];
     static Small::Bytes g_verifyView;
 
     bool WriteRaw(const Small::Str& path, const void* data, size_t size)
@@ -57,6 +57,17 @@ namespace
 
 namespace InstFs
 {
+    bool SelfDirectoryFor(const char* titleId, Small::Str& out)
+    {
+        if (titleId == NULL || strlen(titleId) != 9)
+            return false;
+
+        out.Clear();
+        return out.Set("/dev_hdd0/game/") &&
+               out.Append(titleId) &&
+               out.Append("/USRDIR/");
+    }
+
     bool SelfDirectory(Small::Str& out)
     {
         /*
@@ -73,8 +84,7 @@ namespace InstFs
          * where sys/prx.h and lv2/prx.h have circular include guards and whichever
          * order is used one side loses its declarations; see TargetCompat.hpp.
          */
-        out.Clear();
-        return out.Set("/dev_hdd0/game/NPUB72381/USRDIR/");
+        return SelfDirectoryFor("NPUB72381", out);
     }
 
     bool FileExists(const Small::Str& path)

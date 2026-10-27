@@ -100,18 +100,23 @@ namespace
      * always been looked for, and putting it in /plugins made it unreadable. */
     const char* kPluginsDir = "/dev_hdd0/plugins";
     const char* kSprxName = "qDNSm.sprx";
+    const char* kNetLibName = "qDNSmNetLib.sprx";
+    const char* kGamesName = "qDNSm-server-games.ini";
     const char* kBootPluginsPath = "/dev_hdd0/boot_plugins.txt";
 
-    /* A qDNSm.sprx is a signed SELF of roughly 45 KB. Anything smaller is a
-     * truncated payload or a file that is not what it claims to be. Used only to
-     * catch obvious damage early - the installer does not try to validate the
-     * signature, because a 3.55-signed fake self is deliberately not an
-     * NPDRM SELF and there is no format marker worth checking for.
+    /* A qDNSm.sprx or qDNSmNetLib.sprx is a signed SELF of tens of KB. Anything
+     * smaller is a truncated payload or a file that is not what it claims to
+     * be. Used only to catch obvious damage early - the installer does not try
+     * to validate the signature, because a 3.55-signed fake self is deliberately
+     * not an NPDRM SELF and there is no format marker worth checking for. The
+     * game list has no signature, so its floor only catches an empty or
+     * effectively empty file.
      *
      * The upper bound is the fixed payload buffer in Small.hpp. ReadBinary
      * already refuses anything larger, so this catches nothing new; it is kept
      * because it makes the intended size explicit at the call site. */
-    const size_t kMinPayloadBytes = 4096;
+    const size_t kMinPluginBytes = 4096;
+    const size_t kMinGamesBytes = 16;
     const size_t kMaxPayloadBytes = Small::kMaxPayload;
 
     /* Payload storage. File scope, not stack: it is a megabyte, and a megabyte
@@ -162,8 +167,55 @@ namespace
         return 1;
     }
 
-    bool Install(const Small::Bytes& payload,
+    /* Reads one payload from the installer's own folder and writes it to its
+     * destination. The shared buffer is reused: only one payload is in memory at
+     * a time, and the largest (qDNSm.sprx) is tens of KB against a 1 MB buffer.
+     *
+     * WriteBinaryStaged is used for every file, so a failed update restores the
+     * previous contents instead of leaving a truncated plugin or game list. */
+    bool CopyPayload(const Small::Str& selfDir, const char* fileName,
+                     const Small::Str& destPath, size_t minBytes,
+                     const char* progress)
+    {
+        Small::Str sourcePath;
+
+        if (!sourcePath.Set(selfDir) || !sourcePath.Append(fileName))
+        {
+            Ui::Notify("qDNSm Installer: could not build a payload path. Nothing was changed.");
+            return false;
+        }
+
+        if (Dialog::Available())
+            Dialog::SetProgress(progress);
+
+        g_payloadView.Attach(g_payload, sizeof(g_payload));
+
+        if (!InstFs::ReadBinary(sourcePath, g_payloadView))
+        {
+            Ui::Notify("qDNSm Installer: a payload is missing from the installer's own folder. Reinstall the package.");
+            return false;
+        }
+
+        if ((g_payloadView.size() < minBytes) ||
+            (g_payloadView.size() > kMaxPayloadBytes))
+        {
+            Ui::Notify("qDNSm Installer: a payload is the wrong size and looks damaged. Reinstall the package.");
+            return false;
+        }
+
+        if (!InstFs::WriteBinaryStaged(destPath, g_payloadView.data(), g_payloadView.size()))
+        {
+            Ui::Notify("qDNSm Installer: could not write a plugin file. The console may be out of free space, or the HDD may not be writable.");
+            return false;
+        }
+
+        return true;
+    }
+
+    bool Install(const Small::Str& selfDir,
                  const Small::Str& sprxPath,
+                 const Small::Str& netLibPath,
+                 const Small::Str& gamesPath,
                  const Small::Str& bootPath)
     {
         if (!InstFs::EnsureDirectory(kPluginsDir))
@@ -172,13 +224,26 @@ namespace
             return false;
         }
 
-        /* Staged write: if this is an update over a working install, a failed
-         * overwrite must not leave a truncated plugin behind. */
-        if (!InstFs::WriteBinaryStaged(sprxPath, payload.data(), payload.size()))
-        {
-            Ui::Notify("qDNSm Installer: could not write qDNSm.sprx. The console may be out of free space, or the HDD may not be writable.");
+        /* The network module and game list are written first. They are useless
+         * without the plugin, so a failure here leaves the previous install
+         * alone rather than upgrading the plugin under an old module. */
+        if (!CopyPayload(selfDir, kNetLibName, netLibPath,
+                kMinPluginBytes, "Copying the network module..."))
             return false;
+
+        /* The game list is a first-install fallback. When one is already
+         * present, the plugin's updater owns it: overwriting would replace a
+         * newer downloaded catalogue with whatever this package shipped. */
+        if (!InstFs::FileExists(gamesPath))
+        {
+            if (!CopyPayload(selfDir, kGamesName, gamesPath,
+                    kMinGamesBytes, "Copying the game list..."))
+                return false;
         }
+
+        if (!CopyPayload(selfDir, kSprxName, sprxPath,
+                kMinPluginBytes, "Copying the plugin..."))
+            return false;
 
         BootPlugins::Result result = BootPlugins::Register(bootPath, sprxPath);
 
@@ -186,8 +251,8 @@ namespace
         {
             /* The payload is on disk but unreferenced, so it will not load. That
              * is the same effective state as "not installed", and it is
-             * recoverable by running the installer again - so the sprx is left in
-             * place rather than deleted. */
+             * recoverable by running the installer again - so the files are left
+             * in place rather than deleted. */
             Small::Str message;
             if (message.Set("qDNSm Installer: ") && message.Append(BootPlugins::Describe(result)))
                 Ui::Notify(message.c());
@@ -198,13 +263,14 @@ namespace
         return true;
     }
 
-    /* Removes qDNSm: the plugin file and its boot_plugins.txt entry.
+    /* Removes qDNSm: the boot_plugins.txt entry and every file the installer
+     * owns.
      *
-     * Order matters. The entry goes first, so that if deleting the plugin
+     * Order matters. The entry goes first, so that if deleting the files
      * afterwards fails the console still boots without trying to load a file
      * that may not be there. The reverse order would leave a boot entry pointing
      * at a missing plugin, which is the worse of the two failures. */
-    bool Uninstall(const Small::Str& sprxPath, const Small::Str& bootPath)
+    bool Uninstall(const Small::Str& bootPath)
     {
         BootPlugins::Result result = BootPlugins::Unregister(bootPath);
 
@@ -217,12 +283,26 @@ namespace
             return false;
         }
 
-        /* A missing plugin is not a failure here - it is already uninstalled.
-         * boot_plugins.txt has been cleaned either way, which is what matters. */
-        if (InstFs::FileExists(sprxPath) && !InstFs::DeleteFile(sprxPath))
+        const char* const names[] = { kSprxName, kNetLibName, kGamesName };
+
+        for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++)
         {
-            Ui::Notify("qDNSm Installer: boot_plugins.txt was updated but qDNSm.sprx could not be deleted.");
-            return false;
+            Small::Str path;
+
+            if (!path.Set(kPluginsDir) || !path.Append("/") || !path.Append(names[i]))
+            {
+                Ui::Notify("qDNSm Installer: could not build a file path while uninstalling.");
+                return false;
+            }
+
+            /* A missing file is not a failure here - it is already removed.
+             * boot_plugins.txt has been cleaned either way, which is what
+             * matters. */
+            if (InstFs::FileExists(path) && !InstFs::DeleteFile(path))
+            {
+                Ui::Notify("qDNSm Installer: boot_plugins.txt was updated but a plugin file could not be deleted.");
+                return false;
+            }
         }
 
         return true;
@@ -231,9 +311,17 @@ namespace
     int RunInstaller()
     {
         Small::Str sprxPath;
+        Small::Str netLibPath;
+        Small::Str gamesPath;
         Small::Str bootPath;
 
         if (!sprxPath.Set(kPluginsDir) || !sprxPath.Append("/") || !sprxPath.Append(kSprxName))
+            return Fail("internal path error. Nothing was changed.");
+
+        if (!netLibPath.Set(kPluginsDir) || !netLibPath.Append("/") || !netLibPath.Append(kNetLibName))
+            return Fail("internal path error. Nothing was changed.");
+
+        if (!gamesPath.Set(kPluginsDir) || !gamesPath.Append("/") || !gamesPath.Append(kGamesName))
             return Fail("internal path error. Nothing was changed.");
 
         if (!bootPath.Set(kBootPluginsPath))
@@ -263,12 +351,12 @@ namespace
         if (choice == Dialog::Uninstall)
         {
             Dialog::SetProgress("Removing qDNSm from boot_plugins.txt...");
-            if (!Uninstall(sprxPath, bootPath))
+            if (!Uninstall(bootPath))
             {
                 status = 1;
                 failure = "Uninstall did not finish. boot_plugins.txt may be unchanged.";
             }
-            Dialog::SetProgress("Removing qDNSm.sprx...");
+            Dialog::SetProgress("Removing qDNSm files...");
         }
         else
         {
@@ -280,36 +368,10 @@ namespace
             }
             else
             {
-                Small::Str payloadPath;
-                if (!payloadPath.Set(selfDir) || !payloadPath.Append(kSprxName))
+                if (!Install(selfDir, sprxPath, netLibPath, gamesPath, bootPath))
                 {
                     status = 1;
-                    failure = "could not build the payload path. Nothing was changed.";
-                }
-                else
-                {
-                    Dialog::SetProgress("Reading qDNSm.sprx...");
-                    g_payloadView.Attach(g_payload, sizeof(g_payload));
-
-                    if (!InstFs::ReadBinary(payloadPath, g_payloadView))
-                    {
-                        status = 1;
-                        failure = "qDNSm.sprx is missing from the installer's own folder. Reinstall the package.";
-                    }
-                    else if (g_payloadView.size() < kMinPayloadBytes || g_payloadView.size() > kMaxPayloadBytes)
-                    {
-                        status = 1;
-                        failure = "qDNSm.sprx is the wrong size and looks damaged. Reinstall the package.";
-                    }
-                    else
-                    {
-                        Dialog::SetProgress("Copying the plugin...");
-                        if (!Install(g_payloadView, sprxPath, bootPath))
-                        {
-                            status = 1;
-                            failure = "install did not finish. See the messages above.";
-                        }
-                    }
+                    failure = "install did not finish. See the messages above.";
                 }
             }
         }

@@ -37,6 +37,7 @@ namespace InstFs
     /*! Directory containing the running EBOOT, with a trailing slash.
      *  Usually /dev_hdd0/game/NPUB72381/USRDIR/. The payload is read from here. */
     bool SelfDirectory(Small::Str& out);
+    bool SelfDirectoryFor(const char* titleId, Small::Str& out);
 
     bool FileExists(const Small::Str& path);
     bool DirectoryExists(const Small::Str& path);
