@@ -81,6 +81,9 @@ REM installer folder. Keep both names here so the payload can be copied into
 REM the installer output tree before staging.
 set "SPRX=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSm.sprx"
 set "PRX=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSm.prx"
+set "NETLIB=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSmNetLib.sprx"
+set "NETLIBPRX=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSmNetLib.prx"
+set "GAMES=%ROOT%\data\qDNSm-server-games.ini"
 set "WORK=%OUT_DIR%\pkgwork"
 set "STAGE=%WORK%\%TITLE_ID%"
 set "USRDIR=%STAGE%\USRDIR"
@@ -120,6 +123,8 @@ if not exist "%OUT_DIR%\EBOOT.BIN" set "ERR=EBOOT.BIN missing - did the installe
 if %EBOOTSIZE% LSS 8192 if not defined ERR set "ERR=EBOOT.BIN is only %EBOOTSIZE% bytes - scetool wrote an empty SELF shell. See vendor\scetool\SIGNING.md."
 
 if not exist "%SPRX%" if not defined ERR set "ERR=qDNSm.sprx missing - did the qDNSm project build?"
+if not exist "%NETLIB%" if not defined ERR set "ERR=qDNSmNetLib.sprx missing - did the qDNSmNetLib project build?"
+if not exist "%GAMES%" if not defined ERR set "ERR=qDNSm-server-games.ini missing at %GAMES%"
 if not exist "%~dp0assets\ICON0.PNG" if not defined ERR set "ERR=ICON0.PNG missing at %~dp0assets\ICON0.PNG"
 if not exist "%~dp0assets\PARAM.SFO" if not defined ERR set "ERR=PARAM.SFO missing at %~dp0assets\PARAM.SFO"
 if not exist "%MAKERY%" if not defined ERR set "ERR=make-pkg.py not found at %MAKERY%"
@@ -148,6 +153,10 @@ REM script outright.
 set "STALE="
 if exist "%SPRX%" if exist "%PRX%" for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "if ((Get-Item -LiteralPath '%SPRX%').LastWriteTime -lt (Get-Item -LiteralPath '%PRX%').LastWriteTime) { 'STALE' }" 2^>nul`) do set "STALE=%%i"
 if defined STALE if not defined ERR set "ERR=qDNSm.sprx is older than qDNSm.prx - the two projects built in parallel and this would package last build's plugin. Build the solution again, or build the qDNSm project first, then the installer."
+
+set "STALENET="
+if exist "%NETLIB%" if exist "%NETLIBPRX%" for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "if ((Get-Item -LiteralPath '%NETLIB%').LastWriteTime -lt (Get-Item -LiteralPath '%NETLIBPRX%').LastWriteTime) { 'STALE' }" 2^>nul`) do set "STALENET=%%i"
+if defined STALENET if not defined ERR set "ERR=qDNSmNetLib.sprx is older than qDNSmNetLib.prx - this would package last build's network module. Build the qDNSmNetLib project again, then the installer."
 
 REM Both the qDNSm plugin and the installer EBOOT are signed by scetool from
 REM vendor\scetool\bin\data\keys, so both are signed with the same key set. That
@@ -208,6 +217,14 @@ if defined ERR goto :failed
 
 copy /Y "%OUT_DIR%\qDNSm.sprx" "%USRDIR%\qDNSm.sprx" >nul
 if errorlevel 1 set "ERR=could not stage qDNSm.sprx"
+if defined ERR goto :failed
+
+copy /Y "%NETLIB%" "%USRDIR%\qDNSmNetLib.sprx" >nul
+if errorlevel 1 set "ERR=could not stage qDNSmNetLib.sprx"
+if defined ERR goto :failed
+
+copy /Y "%GAMES%" "%USRDIR%\qDNSm-server-games.ini" >nul
+if errorlevel 1 set "ERR=could not stage qDNSm-server-games.ini"
 if defined ERR goto :failed
 
 copy /Y "%~dp0assets\ICON0.PNG" "%STAGE%\ICON0.PNG" >nul

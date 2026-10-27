@@ -42,6 +42,8 @@ Usage
 By default the current build outputs are copied into the staging tree first:
 
     bin/Release-PS3/qDNSm.sprx              -> <staging-dir>/USRDIR/qDNSm.sprx
+    bin/Release-PS3/qDNSmNetLib.sprx        -> <staging-dir>/USRDIR/qDNSmNetLib.sprx
+    data/qDNSm-server-games.ini             -> <staging-dir>/USRDIR/qDNSm-server-games.ini
     bin/Release-PS3/installer/EBOOT.BIN     -> <staging-dir>/USRDIR/EBOOT.BIN
 
 This is what the Linux side uses to package without rebuilding. Pass
@@ -111,9 +113,11 @@ def _pkgcrypt(key, inbuf, length):
 
 
 def _stage_compiled(staging_dir):
-    """Copy the current compiled payload and installer EBOOT into staging."""
+    """Copy the current compiled payloads and installer EBOOT into staging."""
     usrdir = os.path.join(staging_dir, 'USRDIR')
     sprx = os.path.join(BUILD_DIR, 'qDNSm.sprx')
+    netlib = os.path.join(BUILD_DIR, 'qDNSmNetLib.sprx')
+    games = os.path.join(ROOT, 'data', 'qDNSm-server-games.ini')
     eboot = os.path.join(BUILD_DIR, 'installer', 'EBOOT.BIN')
 
     if not os.path.isfile(eboot):
@@ -124,6 +128,8 @@ def _stage_compiled(staging_dir):
 
     sources = [
         (sprx, os.path.join(usrdir, 'qDNSm.sprx')),
+        (netlib, os.path.join(usrdir, 'qDNSmNetLib.sprx')),
+        (games, os.path.join(usrdir, 'qDNSm-server-games.ini')),
         (eboot, os.path.join(usrdir, 'EBOOT.BIN')),
     ]
 
