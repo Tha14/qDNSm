@@ -25,6 +25,14 @@ public:
    bool IsInputLocked() const;
    void OnUpdate();
 
+   void SetOverlay(Function fn);
+   void ClearOverlay();
+
+   bool IsMainMenu() const;
+   float GetTextOpacity() const;
+   float GetBackgroundOpacity() const;
+   float GetBackgroundSize() const;
+
    Menu& Option(const std::wstring& text);
    Menu& Submenu(Function sub);
    Menu& Skip();
@@ -185,6 +193,7 @@ private:
    Function m_OnMain{};
    Function m_MainMenu{};
    Function m_CurrentMenu{};
+   Function m_Overlay{};
    Function m_SavedMenu{};
    Function m_SubmenuDelay{};
 

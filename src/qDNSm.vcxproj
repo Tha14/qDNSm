@@ -177,7 +177,11 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
     <ClCompile Include="Core\CrtStubs.c" />
     <ClCompile Include="Core\InputUi.cpp" />
     <ClCompile Include="Core\Config.cpp" />
+    <ClCompile Include="Core\DnsList.cpp" />
+    <ClCompile Include="Core\GameList.cpp" />
+    <ClCompile Include="Core\GameListPanel.cpp" />
     <ClCompile Include="Core\Network.cpp" />
+    <ClCompile Include="Core\NetUpdate.cpp" />
     <ClCompile Include="Core\Input.cpp" />
     <ClCompile Include="Core\Renderer.cpp" />
     <ClCompile Include="Core\Menu\Base.cpp" />
@@ -195,8 +199,13 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\Config.hpp" />
+    <ClInclude Include="Core\DnsList.hpp" />
+    <ClInclude Include="Core\GameList.hpp" />
+    <ClInclude Include="Core\GameListPanel.hpp" />
     <ClInclude Include="Core\Version.hpp" />
     <ClInclude Include="Core\Network.hpp" />
+    <ClInclude Include="Core\NetUpdate.hpp" />
+    <ClInclude Include="Net\NetProbeProtocol.hpp" />
     <ClInclude Include="Core\InputUi.hpp" />
     <ClInclude Include="Core\Input.hpp" />
     <ClInclude Include="Core\Renderer.hpp" />

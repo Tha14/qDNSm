@@ -2,7 +2,9 @@
 #include "Memory/Pattern.hpp"
 #include "Menu/Base.hpp"
 #include "Menu/Submenus.hpp"   // UpdateDnsFlow
+#include "GameListPanel.hpp"
 #include "Network.hpp"
+#include "NetUpdate.hpp"
 #include "InputUi.hpp"
 #include <cell/pad/pad_codes.h>
 
@@ -25,6 +27,7 @@ void pafFrameworkBeginHook(void* framework, float frameTime)
     g_Helpers.OnUpdate();
     g_Renderer.OnUpdate();
     g_Menu.SetBusyState(IsDnsApplyBusy(), GetDnsApplyPhase() == DnsApply_Reconnecting);
+    g_GameListPanel.OnFrame(g_Menu.IsOpened(), g_Menu.IsMainMenu());
     g_Menu.OnUpdate();
 
     /*
@@ -33,6 +36,7 @@ void pafFrameworkBeginHook(void* framework, float frameTime)
      * applied.
      */
     UpdateDnsFlow();
+    PollNetUpdate();
 
     /*
      * No network calls here, deliberately.
@@ -66,8 +70,8 @@ int cellPadGetDataExtraInternalHook(void* r3, uint32_t portNum, uint32_t* device
          * game starts, so the menu never finishes closing and the mask would otherwise stay on
          * for the rest of the session, and the game would get no buttons at all.
          */
-        data->button[CELL_PAD_BTN_OFFSET_DIGITAL1] &= ~(CELL_PAD_CTRL_LEFT | CELL_PAD_CTRL_DOWN | CELL_PAD_CTRL_RIGHT | CELL_PAD_CTRL_UP);
-        data->button[CELL_PAD_BTN_OFFSET_DIGITAL2] &= ~(CELL_PAD_CTRL_CROSS | CELL_PAD_CTRL_CIRCLE | CELL_PAD_CTRL_SQUARE | CELL_PAD_CTRL_TRIANGLE);
+        data->button[CELL_PAD_BTN_OFFSET_DIGITAL1] &= ~(CELL_PAD_CTRL_LEFT | CELL_PAD_CTRL_DOWN | CELL_PAD_CTRL_RIGHT | CELL_PAD_CTRL_UP | CELL_PAD_CTRL_SELECT);
+        data->button[CELL_PAD_BTN_OFFSET_DIGITAL2] &= ~(CELL_PAD_CTRL_CROSS | CELL_PAD_CTRL_CIRCLE | CELL_PAD_CTRL_SQUARE | CELL_PAD_CTRL_TRIANGLE | CELL_PAD_CTRL_L1 | CELL_PAD_CTRL_R1);
 
         if (g_Menu.IsMoving())
         {

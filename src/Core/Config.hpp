@@ -6,6 +6,7 @@ struct DnsServerEntry
 {
 	std::wstring name;
 	std::string primary;
+	bool managed{};
 };
 
 struct ConfigSettings
@@ -13,6 +14,8 @@ struct ConfigSettings
 	std::string secondaryDns;
 	bool showNotification{};
 	bool autoReconnect{true};
+	bool showSupportedGames{};
+	bool managedFormat{};
 };
 
 class Config

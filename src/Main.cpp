@@ -11,6 +11,8 @@
 #include "Core/Config.hpp"
 #include "Core/Network.hpp"   // StartManualDnsWorker
 
+#include "Core/NetUpdate.hpp" // StopNetUpdate
+
 // Macros defining our module informations as well as our entry/exit point
 SYS_MODULE_INFO(qDNSm, 0, 1, 1);
 SYS_MODULE_START(module_start);
@@ -77,6 +79,8 @@ static bool IsXmbReady()
 
 static void WaitForStableXmb()
 {
+   Sleep(2000);
+
    const bool isHen = IsConsoleHen();
 
    /*
@@ -189,9 +193,11 @@ int module_start(unsigned int args, void* argp)
 int module_stop(unsigned int args, void* argp)
 {
    sys_ppu_thread_t stopPpuThreadId;
-   int ret = sys_ppu_thread_create(&stopPpuThreadId, [](uint64_t arg) -> void
-   {
-      RemoveHooks();
+    int ret = sys_ppu_thread_create(&stopPpuThreadId, [](uint64_t arg) -> void
+    {
+       StopNetUpdate();
+
+       RemoveHooks();
 
       g_Renderer.~Renderer();
 

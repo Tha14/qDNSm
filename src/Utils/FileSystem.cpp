@@ -61,23 +61,14 @@ bool FileExist(const std::string& filePath)
    return false;
 }
 
-/*
- * Largest file ReadFileText will take. Sized for a qDNSm.ini, not for arbitrary files: an
- * entry is roughly 60 bytes ("[DNSServer12]" + Name + Primary), so 8 KB holds well over a
- * hundred servers with room to spare. It was a fixed 8 KB buffer in BSS, which was 83% of
- * the module's zero-initialised data and was resident for the whole session even though it
- * is only used while the INI is being read.
- */
-static const size_t kMaxFileSize = 8192;
-
-bool ReadFileText(const std::string& fileName, std::string& out)
+bool ReadFileText(const std::string& fileName, std::string& out, size_t maxSize)
 {
     CellFsStat stat;
 
     if (cellFsStat(fileName.c_str(), &stat) != CELL_FS_SUCCEEDED)
         return false;
 
-    if (static_cast<size_t>(stat.st_size) >= kMaxFileSize)
+    if (static_cast<size_t>(stat.st_size) > maxSize)
         return false;
 
     int handle;
@@ -105,7 +96,7 @@ bool ReadFileText(const std::string& fileName, std::string& out)
     return true;
 }
 
-void SaveFile(const std::string& fileName, const void* data, size_t size)
+bool SaveFile(const std::string& fileName, const void* data, size_t size)
 {
     int flags = CELL_FS_O_CREAT | CELL_FS_O_TRUNC | CELL_FS_O_WRONLY;
 
@@ -113,16 +104,18 @@ void SaveFile(const std::string& fileName, const void* data, size_t size)
 
     int fileHandle;
     if (cellFsOpen(fileName.c_str(), flags, &fileHandle, NULL, 0) != CELL_FS_SUCCEEDED)
-        return;
+        return false;
 
-    uint64_t read_size = 0;
-    if (cellFsWrite(fileHandle, data, size, &read_size) != CELL_FS_SUCCEEDED)
+    uint64_t written = 0;
+    if ((cellFsWrite(fileHandle, data, size, &written) != CELL_FS_SUCCEEDED) ||
+        (written != static_cast<uint64_t>(size)))
     {
         cellFsClose(fileHandle);
-        return;
+        return false;
     }
 
     cellFsClose(fileHandle);
 
     cellFsChmod(fileName.c_str(), 0777); // set permissions if created
+    return true;
 }

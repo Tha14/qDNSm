@@ -17,5 +17,5 @@ bool FileExist(const std::string& filePath);
  * vsh::fread and had never once been observed to succeed, and it needed the VSH allocator.
  * Fixed internal buffer, so no allocation and no free.
  */
-bool ReadFileText(const std::string& fileName, std::string& out);
-void SaveFile(const std::string& fileName, const void* data, size_t size);
+bool ReadFileText(const std::string& fileName, std::string& out, size_t maxSize = 64 * 1024);
+bool SaveFile(const std::string& fileName, const void* data, size_t size);

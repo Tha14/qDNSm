@@ -3,6 +3,8 @@
 #include "../Config.hpp"
 #include "../Network.hpp"
 #include "../InputUi.hpp"
+#include "../GameListPanel.hpp"
+#include "../NetUpdate.hpp"
 #include "../Version.hpp"   // QDNSM_VERSION_ASCII
 #include <vsh/stdc.hpp>   // vsh::snprintf
 
@@ -289,6 +291,7 @@ void UpdateDnsFlow()
 	DnsServerEntry entry{};
 	AsciiToWide(entry.name, g_FlowName);
 	entry.primary = text;
+	entry.managed = false;
 
 	if (flow == Flow_Edit && g_FlowIndex < g_Config.m_DnsServers.size())
 	{
@@ -385,6 +388,20 @@ void OptionsSubmenu()
 	g_Menu.Option(L"Auto reconnect")
 		.Toggle(g_Config.m_Settings.autoReconnect, SaveSettings, SaveSettings);
 
+	g_Menu.Option(L"Show supported games")
+		.Toggle(g_Config.m_Settings.showSupportedGames, SaveSettings, SaveSettings);
+
+	g_Menu.Option(L"Update DNS list")
+		.RightText(IsNetUpdateBusy() ? L"Updating..." : L"")
+		.Action([]
+	{
+		if (IsNetUpdateBusy())
+			return;
+
+		if (!StartNetUpdate())
+			NotifyError(L"Update could not start.");
+	});
+
 	g_Menu.Option(L"How to use manually").Action([]
 	{
 		BeginInstructions();
@@ -406,6 +423,8 @@ void MainSubmenu()
 	if (g_InputUi.IsActive())
 		return;
 
+	int hoveredIndex = -1;
+
 	for (size_t i = 0; i < g_Config.GetServerCount(); i++)
 	{
 		DnsServerEntry* entry = g_Config.GetServer(i);
@@ -423,6 +442,9 @@ void MainSubmenu()
 		}).DeleteAction([index]
 		{
 			BeginDelete(index);
+		}).WhileHovered([&hoveredIndex, i]
+		{
+			hoveredIndex = static_cast<int>(i);
 		});
 	}
 
@@ -432,4 +454,10 @@ void MainSubmenu()
 	});
 
 	g_Menu.Option(L"" ENTRY_PREFIX_OPTIONS L"qDNSm options").Submenu(OptionsSubmenu);
+
+	g_GameListPanel.SetHoveredIndex(hoveredIndex);
+	g_Menu.SetOverlay([]
+	{
+		g_GameListPanel.Draw();
+	});
 }

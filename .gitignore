@@ -17,6 +17,10 @@ PS3_Debug/*
 PS3_Release/*
 bin/*
 bin-int/*
+# A direct qDNSm.vcxproj build without -p:SolutionDir leaves its intermediate
+# tree under src/.
+src/bin/
+src/bin-int/
 *.opensdf
 .vs/*
 
@@ -33,6 +37,8 @@ here_are_keys/
 #                           from the ps3dev Docker image instead.
 #   vendor/scetool     232K  signing tool, and its key set.
 #   vendor/securetool  1.6M  Sony signing binaries.
+#   vendor/mbedtls     6.3M  mbedTLS 2.28.10 sources for qDNSmNetLib. Only the
+#                           include/ and library/ trees are kept.
 #
 # NOTE: vendor/VirtualShell, vendor/sysutil and vendor/makepkg stay tracked -
 # the plugin links against VirtualShell, and they are small.
@@ -42,6 +48,7 @@ here_are_keys/
 vendor/PSL1GHT/
 vendor/scetool/
 vendor/securetool/
+vendor/mbedtls/
 
 # PSL1GHT build output. The existing "build/*" rule is not anchored, so it does
 # not cover installer_src/build/.
@@ -55,7 +62,16 @@ installer_src/*.fake.self
 installer_src/*.pkg
 installer_src/*.gnpdrm.pkg
 
+launcher_src/build/
+launcher_src/*.elf
+launcher_src/*.elf.map
+launcher_src/*.self
+launcher_src/*.fake.self
+launcher_src/*.pkg
+launcher_src/*.gnpdrm.pkg
+
 packaging/pkgfiles/USRDIR/qDNSm.sprx
+packaging/launcher-pkgfiles/USRDIR/
 
 __pycache__/
 *.pyc
@@ -70,3 +86,13 @@ vendor/makepkg/makepkg2.exe
 # exist on the machine that generated it, so it is noise in the repository.
 *.vcxproj.user
 
+
+# TODO.md - the running notes on everything that was tried and did not work,
+# mostly the network interface restart. Local working document, deliberately
+# not in the repository. Nothing in the tree refers to it; the source comments
+# carry the short form of what matters.
+TODO.md
+
+# TODO_archive.md - the raw, round-by-round record that TODO.md was distilled
+# from. Same reasoning: a local working document.
+TODO_archive.md

@@ -1,5 +1,6 @@
 #include "Base.hpp"
 #include "../InputUi.hpp"
+#include "../Config.hpp"
 #include "../Version.hpp"   // QDNSM_VERSION
 #include <functional>
 
@@ -32,6 +33,36 @@ void Menu::SetBusyState(bool busy, bool reconnecting)
 bool Menu::IsInputLocked() const
 {
     return m_InputLocked;
+}
+
+void Menu::SetOverlay(Function fn)
+{
+    m_Overlay = fn;
+}
+
+void Menu::ClearOverlay()
+{
+    m_Overlay = nullptr;
+}
+
+bool Menu::IsMainMenu() const
+{
+    return m_CurrentMenu == m_MainMenu;
+}
+
+float Menu::GetTextOpacity() const
+{
+    return m_OpacityText;
+}
+
+float Menu::GetBackgroundOpacity() const
+{
+    return m_OpacityBackground;
+}
+
+float Menu::GetBackgroundSize() const
+{
+    return m_SizeBackground;
 }
 
 paf::vec4 Menu::ListTextColor() const
@@ -214,6 +245,7 @@ void Menu::OnClose()
    m_SavedMenu = m_CurrentMenu;
    m_SavedSubmenuLevel = m_SubmenuLevel;
    m_SavedSelection = m_Selection;
+   m_Overlay = nullptr;
 
    // closing animation
    g_Timer.Add(&m_SizeBackground, 0, 200, 200);
@@ -232,6 +264,7 @@ void Menu::OnBack()
    m_SubmenuLevel--;
    m_CurrentMenu = m_LastSubmenu[m_SubmenuLevel];
    m_Selection = m_LastSelection[m_SubmenuLevel];
+   m_Overlay = nullptr;
 
    g_Timer.Add(&m_HighlightBarPosY, (m_Selection.option - m_Selection.index) * sizeText, 250);
 }
@@ -259,6 +292,7 @@ void Menu::EnterSubmenu(Function submenu)
 
    m_LastSubmenu[m_SubmenuLevel] = m_CurrentMenu;
    m_LastSelection[m_SubmenuLevel] = m_Selection;
+   m_Overlay = nullptr;
 
    m_CurrentMenu = submenu;
    m_Selection.option = 1;
@@ -461,6 +495,10 @@ void Menu::UpdateUI()
 
       DrawFooter();
       DrawDescription();
+
+      if (m_Overlay != nullptr)
+         m_Overlay();
+
       DrawBusyOverlay();
    }
 
@@ -573,10 +611,26 @@ void Menu::DrawFooter()
 		Renderer::Centered);
 
 	// Instructions under the footer
+	std::wstring instructions;
+
+	if (m_InputLocked)
+	{
+		instructions = L"Please wait...\n\uF880: Close";
+	}
+	else if (m_CurrentMenu == m_MainMenu)
+	{
+		instructions = L"\uF881: Apply | \uF882: Edit | \uF883: Delete\n\uF88E: ";
+		instructions += g_Config.m_Settings.showSupportedGames
+			? L"Hide supported games"
+			: L"Show supported games";
+	}
+	else
+	{
+		instructions = L"Actions for the selected entry:\n\uF881: Apply | \uF882: Edit | \uF883: Delete";
+	}
+
 	g_Renderer.Text(
-		m_InputLocked
-			? L"Please wait...\n\uF880: Close"
-			: L"Actions for the selected entry:\n\uF881: Apply | \uF882: Edit | \uF883: Delete",
+		instructions,
 		paf::vec2(position.x - sizeWidth / 2 + m_SizeBackgroundSpace / 4, position.y - m_SizeBackground / 1.65 - sizeText / 1.8),
 		sizeText / 1.14,
 		paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
