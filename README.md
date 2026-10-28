@@ -51,12 +51,14 @@ run you can delete the installer itself — nothing else depends on it.
 
 ### Manually
 
-qDNSm is loaded as a boot plugin. Take `qDNSm.sprx` from the [releases page](https://github.com/Tha14/qDNSm/releases), put it in:
-`/dev_hdd0/plugins/`, and point `/dev_hdd0/boot_plugins.txt` at it:
+qDNSm is loaded as a boot plugin. Take `qDNSm.sprx` and `qDNSmNetLib.sprx` from the [releases page](https://github.com/Tha14/qDNSm/releases) and put both in:
+`/dev_hdd0/plugins/`, then point `/dev_hdd0/boot_plugins.txt` at `qDNSm.sprx`:
 
 ```
 /dev_hdd0/plugins/qDNSm.sprx
 ```
+
+**Do not add `qDNSmNetLib.sprx` to `boot_plugins.txt`.** It is not a boot plugin and must never be loaded at boot; it sits beside `qDNSm.sprx` and is loaded on demand, and it is needed only for updating the DNS server list and the supported games list.
 
 You may then reboot in order for the plugin to load.
 
@@ -93,6 +95,8 @@ Under **qDNSm options**:
 | Secondary DNS | the secondary resolver paired with every server |
 | Startup notification | show a notification when the plugin loads |
 | Auto reconnect | restart the Internet Connection after applying DNS; on by default |
+| Show supported games | show the supported-games panel for the highlighted server; on by default |
+| Update DNS list | download and apply the latest DNS server list; also refreshes the supported-games list when **Show supported games** is on |
 | How to use manually | the manual Internet Connection toggle steps, in-app |
 | About | version and credit |
 | Restore defaults | reset the server list to the shipped list |
