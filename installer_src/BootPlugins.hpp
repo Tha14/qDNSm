@@ -13,9 +13,11 @@
  *      endings. Blank or whitespace-only lines are dropped on every rewrite,
  *      install and uninstall alike.
  *   2. Registering is idempotent and de-duplicating: any pre-existing qDNSm
- *      lines are removed and exactly one is appended, so running the installer
- *      twice does not produce two entries and a user who previously installed
- *      by hand at a custom path gets moved to the standard one.
+ *      lines are removed and exactly one is inserted at the top, so running the
+ *      installer twice does not produce two entries and a user who previously
+ *      installed by hand at a custom path gets moved to the standard one. The
+ *      top position is deliberate: webMAN MOD patches memory while it starts,
+ *      and a VSH plugin listed after it can hang before module_start runs.
  *   3. A file that exists but cannot be read is never rewritten. "Could not
  *      read" must not become "silently replaced with a version that lost the
  *      plugins we could not see".

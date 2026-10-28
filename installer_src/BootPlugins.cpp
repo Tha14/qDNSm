@@ -78,8 +78,8 @@ namespace
 
             if (nl == Small::kNpos)
             {
-                /* Trailing fragment with no newline. Preserved as-is; Rewrite
-                 * gives it a terminator if an entry is appended after it. */
+                /* Trailing fragment with no newline. Preserved as-is; it stays
+                 * the final line after the qDNSm entry is inserted above it. */
                 if (pos >= len)
                     break;
 
@@ -240,7 +240,7 @@ namespace
     }
 
     /*! Shared body of Register and Unregister. lineToAppend == NULL means remove
-     *  only. */
+     *  only; otherwise it is inserted at the top of the list. */
     Result Rewrite(const Small::Str& path, const char* lineToAppend)
     {
         State state;
@@ -297,8 +297,23 @@ namespace
         const char* term    = usesCrlf ? "\r\n" : "\n";
         size_t      termLen = strlen(term);
 
-        /* Rebuild into g_updated. */
+        /* Rebuild into g_updated. qDNSm always goes first: webMAN MOD patches
+         * memory while it starts, and VSH plugins listed after it can hang
+         * before module_start runs. */
         size_t out = 0;
+
+        if (lineToAppend != NULL)
+        {
+            if (!Emit(g_updated, out, lineToAppend, strlen(lineToAppend)))
+                return TooLarge;
+
+            if (keptCount > 0)
+            {
+                if (!Emit(g_updated, out, term, termLen))
+                    return TooLarge;
+            }
+        }
+
         for (size_t i = 0; i < keptCount; i++)
         {
             const Small::LineRef& line = g_kept[i];
@@ -306,25 +321,14 @@ namespace
             if (!Emit(g_updated, out, g_text + line.start, line.len))
                 return TooLarge;
 
+            /* The final line is always left bare, install and uninstall alike. */
             const bool isFinal = (i + 1 == keptCount);
-            const bool dropTerm = isFinal && (lineToAppend == NULL);
 
-            if ((line.termLen > 0) && !dropTerm)
+            if ((line.termLen > 0) && !isFinal)
             {
                 if (!Emit(g_updated, out, g_text + line.termStart, line.termLen))
                     return TooLarge;
             }
-            else if (isFinal && (lineToAppend != NULL) && (line.termLen == 0))
-            {
-                if (!Emit(g_updated, out, term, termLen))
-                    return TooLarge;
-            }
-        }
-
-        if (lineToAppend != NULL)
-        {
-            if (!Emit(g_updated, out, lineToAppend, strlen(lineToAppend)))
-                return TooLarge;
         }
 
         return StageAndSwap(path, g_text, originalLen, state.exists, g_updated, out);

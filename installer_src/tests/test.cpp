@@ -84,17 +84,29 @@ int main()
         FakeFs::Clear();
         FakeFs::Put(kBoot, "/dev_hdd0/plugins/webMAN.sprx\n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("LF: other plugin preserved, final line bare",
+        Check("LF: other plugin preserved, qDNSm first, final line bare",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
+              "/dev_hdd0/plugins/qDNSm.sprx\n/dev_hdd0/plugins/webMAN.sprx");
     }
     {
         FakeFs::Clear();
         FakeFs::Put(kBoot, "/dev_hdd0/plugins/webMAN.sprx\r\n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("CRLF: separator matched, final line bare",
+        Check("CRLF: separator matched, qDNSm first, final line bare",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\r\n/dev_hdd0/plugins/qDNSm.sprx");
+              "/dev_hdd0/plugins/qDNSm.sprx\r\n/dev_hdd0/plugins/webMAN.sprx");
+    }
+    {
+        FakeFs::Clear();
+        FakeFs::Put(kBoot,
+                    "/dev_hdd0/plugins/webftp_server.sprx\n"
+                    "/dev_hdd0/plugins/webftp_server_lite.sprx\n");
+        BootPlugins::Register(kBoot, kSprx);
+        Check("qDNSm is placed above both webMAN FTP plugins",
+              FakeFs::Get(kBoot),
+              "/dev_hdd0/plugins/qDNSm.sprx\n"
+              "/dev_hdd0/plugins/webftp_server.sprx\n"
+              "/dev_hdd0/plugins/webftp_server_lite.sprx");
     }
     {
         FakeFs::Clear();
@@ -104,20 +116,20 @@ int main()
                     "  /dev_hdd0/plugins/webMAN.sprx  \n"
                     "/dev_hdd0/plugins/Irisman.sprx\n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("comments and padding preserved, blank line removed",
+        Check("comments and padding preserved, qDNSm first, blank line removed",
               FakeFs::Get(kBoot),
+              "/dev_hdd0/plugins/qDNSm.sprx\n"
               "# my plugins\n"
               "  /dev_hdd0/plugins/webMAN.sprx  \n"
-              "/dev_hdd0/plugins/Irisman.sprx\n"
-              "/dev_hdd0/plugins/qDNSm.sprx");
+              "/dev_hdd0/plugins/Irisman.sprx");
     }
     {
         FakeFs::Clear();
         FakeFs::Put(kBoot, "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx\n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("already registered: still exactly one entry",
+        Check("already registered: still exactly one entry, moved to the top",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
+              "/dev_hdd0/plugins/qDNSm.sprx\n/dev_hdd0/plugins/webMAN.sprx");
     }
     {
         FakeFs::Clear();
@@ -128,7 +140,7 @@ int main()
         BootPlugins::Register(kBoot, kSprx);
         Check("duplicates collapsed, indented copy matched by basename",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
+              "/dev_hdd0/plugins/qDNSm.sprx\n/dev_hdd0/plugins/webMAN.sprx");
     }
     {
         FakeFs::Clear();
@@ -136,23 +148,23 @@ int main()
         BootPlugins::Register(kBoot, kSprx);
         Check("no trailing newline: separator inserted, lines not concatenated",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
+              "/dev_hdd0/plugins/qDNSm.sprx\n/dev_hdd0/plugins/webMAN.sprx");
     }
     {
         FakeFs::Clear();
         FakeFs::Put(kBoot, "/dev_usb000/somewhere/qDNSm.sprx\n/dev_hdd0/plugins/webMAN.sprx\n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("custom-path entry moved to the standard path",
+        Check("custom-path entry moved to the standard path, at the top",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
+              "/dev_hdd0/plugins/qDNSm.sprx\n/dev_hdd0/plugins/webMAN.sprx");
     }
     {
         FakeFs::Clear();
         FakeFs::Put(kBoot, "/dev_hdd0/plugins/webMAN.sprx\n\n/dev_hdd0/plugins/Irisman.sprx\n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("blank lines between plugins removed",
+        Check("blank lines between plugins removed, qDNSm first",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/Irisman.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
+              "/dev_hdd0/plugins/qDNSm.sprx\n/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/Irisman.sprx");
     }
     {
         FakeFs::Clear();
@@ -166,19 +178,19 @@ int main()
                     "\n"
                     "   \n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("install removes leading, middle and trailing blank lines",
+        Check("install removes leading, middle and trailing blank lines, qDNSm first",
               FakeFs::Get(kBoot),
+              "/dev_hdd0/plugins/qDNSm.sprx\n"
               "/dev_hdd0/plugins/webMAN.sprx\n"
-              "/dev_hdd0/plugins/Irisman.sprx\n"
-              "/dev_hdd0/plugins/qDNSm.sprx");
+              "/dev_hdd0/plugins/Irisman.sprx");
     }
     {
         FakeFs::Clear();
         FakeFs::Put(kBoot, "/dev_hdd0/plugins/webMAN.sprx\r\n\r\n\t\r\n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("CRLF blank lines removed, separator kept, final line bare",
+        Check("CRLF blank lines removed, separator kept, qDNSm first, final line bare",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\r\n/dev_hdd0/plugins/qDNSm.sprx");
+              "/dev_hdd0/plugins/qDNSm.sprx\r\n/dev_hdd0/plugins/webMAN.sprx");
     }
     {
         FakeFs::Clear();
@@ -188,9 +200,9 @@ int main()
                     "/dev_hdd0/plugins/webMAN.sprx\n"
                     "\n");
         BootPlugins::Register(kBoot, kSprx);
-        Check("old entry and blanks removed, one entry appended at the end",
+        Check("old entry and blanks removed, one entry inserted at the top",
               FakeFs::Get(kBoot),
-              "/dev_hdd0/plugins/webMAN.sprx\n/dev_hdd0/plugins/qDNSm.sprx");
+              "/dev_hdd0/plugins/qDNSm.sprx\n/dev_hdd0/plugins/webMAN.sprx");
     }
     {
         FakeFs::Clear();

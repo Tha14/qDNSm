@@ -4,8 +4,15 @@ Source for the qDNSm installer EBOOT and its PKG. Self-contained: everything nee
 to build is either here or in `vendor/PSL1GHT`.
 
 The installer installs `qDNSm.sprx`, `qDNSmNetLib.sprx` and
-`qDNSm-server-games.ini` into `/dev_hdd0/plugins/` and registers the plugin in
-`/dev_hdd0/boot_plugins.txt`, with an option to uninstall or update.
+`qDNSm-server-games.ini` into `/dev_hdd0/plugins/` and registers the plugin at
+the top of `/dev_hdd0/boot_plugins.txt`, with an option to uninstall or update.
+
+## Boot order
+
+The qDNSm entry must be above webMAN MOD's `webftp_server.sprx` or
+`webftp_server_lite.sprx` entry. webMAN MOD patches memory while it starts, and
+a VSH plugin listed after it can hang before `module_start` runs. `Register()`
+always writes the qDNSm line first, so the installer guarantees this order.
 
 ## Build
 
@@ -33,7 +40,7 @@ sh installer_src/tests/run-tests.sh
 | `Makefile` | build, and the `pkg` target |
 | `Installer.cpp` | the flow: prompt, install/uninstall, report, reboot |
 | `InstallerFs.cpp/.hpp` | file operations over sysFs, with staged writes |
-| `BootPlugins.cpp/.hpp` | reading and editing `boot_plugins.txt`; install and uninstall both strip blank lines and the trailing newline, leaving the final line bare, and uninstall leaves the file untouched when nothing of ours is in it |
+| `BootPlugins.cpp/.hpp` | reading and editing `boot_plugins.txt`; install and uninstall both strip blank lines and the trailing newline, leaving the final line bare, install always puts the qDNSm entry first, and uninstall leaves the file untouched when nothing of ours is in it |
 | `Dialog.cpp/.hpp` | RSX bring-up and the SysUtil dialogs |
 | `Small.hpp` | a small string/buffer type — see the note in the file |
 | `TargetCompat.hpp` | maps the SDK's file APIs across SNC and PSL1GHT |
