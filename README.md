@@ -30,6 +30,8 @@ Works on **CFW** and **PS3HEN**, on CEX, PEX, D-PEX and DEX-mode consoles.
 
 - PS3 with CFW **or** PS3HEN (on OFW/HFW)
 - The SPRX loaded at boot via `boot_plugins.txt`
+- The qDNSm entry must be **above** webMAN MOD's `webftp_server.sprx` /
+  `webftp_server_lite.sprx` entry in that file
 
 ---
 
@@ -42,7 +44,7 @@ Works on **CFW** and **PS3HEN**, on CEX, PEX, D-PEX and DEX-mode consoles.
 package, launch **qDNSm installer** from the XMB, and it will:
 
 - copy `qDNSm.sprx` to `/dev_hdd0/plugins/qDNSm.sprx`
-- add it to `/dev_hdd0/boot_plugins.txt`
+- add it to the **top** of `/dev_hdd0/boot_plugins.txt`, ahead of webMAN MOD
 - offer to uninstall later, which removes both again
 - offer to reboot when it's done
 
@@ -57,6 +59,20 @@ qDNSm is loaded as a boot plugin. Take `qDNSm.sprx` and `qDNSmNetLib.sprx` from 
 ```
 /dev_hdd0/plugins/qDNSm.sprx
 ```
+
+> **Warning: qDNSm must load before webMAN MOD.** The `qDNSm.sprx` line must be
+> **higher in `boot_plugins.txt`** than `webftp_server.sprx` and
+> `webftp_server_lite.sprx`. webMAN MOD patches memory while it starts (see
+> [webMAN-MOD issue #447](https://github.com/aldostools/webMAN-MOD/issues/447)),
+> and a VSH plugin listed after it can freeze before it ever runs, leaving the
+> console stuck on the HEN loading screen. The installer places qDNSm at the top
+> automatically; if you edit the file by hand or use a launcher, move the qDNSm
+> line above both webMAN entries. For example:
+>
+> ```
+> /dev_hdd0/plugins/qDNSm.sprx
+> /dev_hdd0/plugins/webftp_server.sprx
+> ```
 
 **Do not add `qDNSmNetLib.sprx` to `boot_plugins.txt`.** It is not a boot plugin and must never be loaded at boot; it sits beside `qDNSm.sprx` and is loaded on demand, and it is needed only for updating the DNS server list and the supported games list.
 
@@ -206,9 +222,9 @@ See [`installer_src/README.md`](installer_src/README.md) for details.
 
 ## LLM disclosure
 
-Most of this was written by hand, but an LLM helped with some of it — the documentation and
-some of the scripts, writing an running tests, tracking down and fixing bugs and finding
-mistakes I made during debugging and development.
+Most of this was written by hand, but there was assistance by an LLM — the documentation and
+some of the scripts for generating packages, writing and running tests, tracking down and 
+fixing bugs, some auditing and finding mistakes I made during debugging and development.
 
 ---
 
