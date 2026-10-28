@@ -86,6 +86,14 @@ namespace InstFs
     /*! True if the file was removed, or was already absent. */
     bool DeleteFile(const Small::Str& path);
 
+    /*! Create an empty file only if it does not already exist.
+     *
+     *  An existing file is left byte for byte untouched, whether it is empty
+     *  or not. Used for HEN's hen_updater.off switch, where truncating a file
+     *  the user already created would be harmless today but would still be an
+     *  unnecessary write to someone else's setting. */
+    bool EnsureEmptyFile(const Small::Str& path);
+
     /*! Create the directory and any missing parents. */
     bool EnsureDirectory(const Small::Str& path);
 }

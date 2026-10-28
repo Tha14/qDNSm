@@ -396,6 +396,30 @@ int main()
               FakeFs::Get(kBoot), "/dev_hdd0/plugins/qDNSm.sprx");
     }
 
+    printf("\n-- HEN updater flag --\n");
+    {
+        FakeFs::Clear();
+        const Small::Str path("/dev_hdd0/hen_updater.off");
+        CheckBool("missing flag: created", InstFs::EnsureEmptyFile(path), true);
+        CheckBool("missing flag: exists", FakeFs::Exists(path.c()), true);
+        Check("missing flag: empty", FakeFs::Get(path.c()), "");
+    }
+    {
+        FakeFs::Clear();
+        const Small::Str path("/dev_hdd0/hen_updater.off");
+        FakeFs::Put(path.c(), "keep me");
+        CheckBool("existing flag: reports success", InstFs::EnsureEmptyFile(path), true);
+        Check("existing flag: contents untouched", FakeFs::Get(path.c()), "keep me");
+    }
+    {
+        FakeFs::Clear();
+        const Small::Str path("/dev_hdd0/hen_updater.off");
+        FakeFs::g_FailWrites = true;
+        CheckBool("write failure: reported", InstFs::EnsureEmptyFile(path), false);
+        FakeFs::g_FailWrites = false;
+        CheckBool("write failure: file not created", FakeFs::Exists(path.c()), false);
+    }
+
     printf("\n-- failure handling --\n");
     {
         FakeFs::Clear();

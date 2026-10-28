@@ -144,4 +144,13 @@ namespace InstFs
     {
         return FakeFs::g_Fs.erase(path.c()) != 0 || true;
     }
+
+    bool EnsureEmptyFile(const Small::Str& path)
+    {
+        if (FakeFs::Exists(path.c()))
+            return true;
+
+        static const uint8_t kNothing = 0;
+        return WriteBinaryVerified(path, &kNothing, 0);
+    }
 }

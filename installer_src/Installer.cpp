@@ -103,6 +103,7 @@ namespace
     const char* kNetLibName = "qDNSmNetLib.sprx";
     const char* kGamesName = "qDNSm-server-games.ini";
     const char* kBootPluginsPath = "/dev_hdd0/boot_plugins.txt";
+    const char* kHenUpdaterOffPath = "/dev_hdd0/hen_updater.off";
 
     /* A qDNSm.sprx or qDNSmNetLib.sprx is a signed SELF of tens of KB. Anything
      * smaller is a truncated payload or a file that is not what it claims to
@@ -221,6 +222,23 @@ namespace
         if (!InstFs::EnsureDirectory(kPluginsDir))
         {
             Ui::Notify("qDNSm Installer: could not create /dev_hdd0/plugins. Nothing was changed.");
+            return false;
+        }
+
+        /*
+         * PS3HEN checks for its own updates during startup. That check has no
+         * timeouts, and while it is waiting HEN never reaches the end of its
+         * boot thread - the loading screen stays up and qDNSm never loads.
+         * HEN's own supported switch for this is the presence of this empty
+         * file. Create it once, but never truncate one the user already has.
+         *
+         * This is deliberately left in place by Uninstall: it is a HEN setting,
+         * not an installed qDNSm file, and removing it could make HEN hang
+         * again after qDNSm is gone.
+         */
+        if (!InstFs::EnsureEmptyFile(kHenUpdaterOffPath))
+        {
+            Ui::Notify("qDNSm Installer: could not create /dev_hdd0/hen_updater.off. HEN may hang while checking for updates. The install was stopped.");
             return false;
         }
 

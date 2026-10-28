@@ -277,6 +277,23 @@ namespace InstFs
         return cellFsUnlink(path.c()) == CELL_FS_SUCCEEDED;
     }
 
+    bool EnsureEmptyFile(const Small::Str& path)
+    {
+        if (FileExists(path))
+            return true;
+
+        int handle = 0;
+        if (cellFsOpen(path.c(), kFlagsWrite, &handle, NULL, 0) != CELL_FS_SUCCEEDED)
+            return false;
+
+        cellFsChmod(path.c(), 0777);
+
+        if (cellFsClose(handle) != CELL_FS_SUCCEEDED)
+            return false;
+
+        return FileExists(path) && (FileSize(path) == 0);
+    }
+
     bool EnsureDirectory(const Small::Str& path)
     {
         if (DirectoryExists(path))
