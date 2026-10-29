@@ -1,6 +1,7 @@
 ﻿#include "Config.hpp"
 #include "Utils/FileSystem.hpp"
 #include "Utils/Std.hpp"
+#include "LanguageCodec.hpp"
 #include <vsh/stdc.hpp>
 #include <vsh/allocator.hpp>
 
@@ -15,6 +16,7 @@ static const char* KEY_SECONDARY_DNS = "SecondaryDNS";
 static const char* KEY_SHOW_NOTIFICATION = "ShowNotification";
 static const char* KEY_AUTO_RECONNECT = "AutoReconnect";
 static const char* KEY_SHOW_SUPPORTED_GAMES = "ShowSupportedGames";
+static const char* KEY_LANGUAGE = "Language";
 static const char* KEY_MANAGED_FORMAT = "ManagedFormat";
 static const char* KEY_NAME = "Name";
 static const char* KEY_PRIMARY = "Primary";
@@ -27,6 +29,7 @@ static const char* DEFAULT_SECONDARY_DNS = "8.8.8.8";
 static const bool DEFAULT_SHOW_NOTIFICATION = true;
 static const bool DEFAULT_AUTO_RECONNECT = true;
 static const bool DEFAULT_SHOW_SUPPORTED_GAMES = true;
+static const char* DEFAULT_LANGUAGE = "auto";
 
 struct DefaultDnsServer
 {
@@ -257,6 +260,7 @@ static ConfigParseFlags ParseConfig(Config& config, char* data, size_t size)
 	config.m_Settings.showNotification = DEFAULT_SHOW_NOTIFICATION;
 	config.m_Settings.autoReconnect = DEFAULT_AUTO_RECONNECT;
 	config.m_Settings.showSupportedGames = DEFAULT_SHOW_SUPPORTED_GAMES;
+	config.m_Settings.language = DEFAULT_LANGUAGE;
 	config.m_Settings.managedFormat = false;
 
 	ConfigParseFlags flags{};
@@ -363,6 +367,13 @@ static ConfigParseFlags ParseConfig(Config& config, char* data, size_t size)
 			}
 			else if (RangeEquals(key, keyLength, KEY_SHOW_SUPPORTED_GAMES))
 				config.m_Settings.showSupportedGames = RangeToBool(value, valueLength);
+			else if (RangeEquals(key, keyLength, KEY_LANGUAGE))
+			{
+				RangeToString(config.m_Settings.language, value, valueLength);
+
+				if (!Language_IsValidCode(config.m_Settings.language))
+					config.m_Settings.language = DEFAULT_LANGUAGE;
+			}
 			else if (RangeEquals(key, keyLength, KEY_MANAGED_FORMAT))
 			{
 				config.m_Settings.managedFormat = RangeToBool(value, valueLength);
@@ -412,6 +423,7 @@ void Config::ResetToDefaults()
 	m_Settings.showNotification = DEFAULT_SHOW_NOTIFICATION;
 	m_Settings.autoReconnect = DEFAULT_AUTO_RECONNECT;
 	m_Settings.showSupportedGames = DEFAULT_SHOW_SUPPORTED_GAMES;
+	m_Settings.language = DEFAULT_LANGUAGE;
 	m_Settings.managedFormat = true;
 }
 
@@ -485,6 +497,10 @@ bool Config::Save()
 	content += KEY_SHOW_SUPPORTED_GAMES;
 	content += "=";
 	content += (m_Settings.showSupportedGames ? "1" : "0");
+	content += "\n";
+	content += KEY_LANGUAGE;
+	content += "=";
+	content += m_Settings.language;
 	content += "\n";
 	content += KEY_MANAGED_FORMAT;
 	content += "=";

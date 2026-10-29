@@ -5,8 +5,12 @@
 #include "../InputUi.hpp"
 #include "../GameListPanel.hpp"
 #include "../NetUpdate.hpp"
-#include "../Version.hpp"   // QDNSM_VERSION_ASCII
+#include "../Language.hpp"
+#include "../LanguageCodec.hpp"
+#include "../LanguageSystem.hpp"
+#include "../Version.hpp"   // QDNSM_VERSION
 #include <vsh/stdc.hpp>   // vsh::snprintf
+#include <vector>
 
 /*
  * All user input goes through our own InputUi, drawn with g_Renderer. The PS3 sysutil
@@ -59,7 +63,7 @@ void ApplyDnsServer(size_t index)
 	{
 		EndDnsApply();
 		g_Menu.SetBusyState(false, false);
-		NotifyError(L"Failed to write DNS settings.");
+		NotifyError(T(TEXT_NOTIFY_DNS_WRITE_FAILED));
 		return;
 	}
 
@@ -67,14 +71,14 @@ void ApplyDnsServer(size_t index)
 	{
 		EndDnsApply();
 
-		std::string message = "DNS set to ";
-		message += displayName;
-		message += ".\nDisable, then Enable Internet Connection.";
+		std::wstring displayWide = entry->name;
 
-		std::wstring wideMessage;
-		AsciiToWide(wideMessage, message);
+		if (displayWide.empty())
+			AsciiToWide(displayWide, entry->primary);
 
-		vsh::ShowNotificationWithIcon(wideMessage, vsh::NotifyIcon::BlueVerifiedCheckmark,
+		std::wstring message = FormatText(TEXT_NOTIFY_DNS_SET_MANUAL, displayWide);
+
+		vsh::ShowNotificationWithIcon(message.c_str(), vsh::NotifyIcon::BlueVerifiedCheckmark,
 			vsh::NotifySound::OK);
 		return;
 	}
@@ -83,7 +87,7 @@ void ApplyDnsServer(size_t index)
 	{
 		EndDnsApply();
 		g_Menu.SetBusyState(false, false);
-		NotifyError(L"DNS was written, but the reconnect could not start.");
+		NotifyError(T(TEXT_NOTIFY_RECONNECT_START_FAILED));
 		return;
 	}
 
@@ -120,7 +124,7 @@ static void BeginAdd()
 {
 	g_Flow = Flow_Add;
 	g_FlowStep = 0;
-	g_InputUi.BeginText(L"DNS server name", std::string(), false);
+	g_InputUi.BeginText(T(TEXT_DIALOG_DNS_NAME_TITLE), std::string(), false);
 }
 
 static void BeginEdit(unsigned int index)
@@ -135,7 +139,7 @@ static void BeginEdit(unsigned int index)
 	g_FlowName = WideToAscii(entry->name);
 	g_FlowPrimary = entry->primary;
 
-	g_InputUi.BeginText(L"DNS server name", g_FlowName, false);
+	g_InputUi.BeginText(T(TEXT_DIALOG_DNS_NAME_TITLE), g_FlowName, false);
 }
 
 static void BeginRestoreDefaults()
@@ -144,8 +148,8 @@ static void BeginRestoreDefaults()
 	g_FlowStep = 0;
 	g_FlowIndex = 0;
 
-	g_InputUi.BeginConfirm(L"Restore defaults?",
-		"Replace every DNS server and setting with the defaults.");
+	g_InputUi.BeginConfirm(T(TEXT_DIALOG_RESTORE_TITLE),
+		T(TEXT_DIALOG_RESTORE_MESSAGE));
 }
 
 static void BeginDelete(unsigned int index)
@@ -158,14 +162,15 @@ static void BeginDelete(unsigned int index)
 	g_FlowStep = 0;
 	g_FlowIndex = index;
 
-	g_InputUi.BeginConfirm(L"Delete DNS server?", WideToAscii(entry->name));
+	g_InputUi.BeginConfirm(T(TEXT_DIALOG_DELETE_TITLE),
+		FormatText(TEXT_DIALOG_DELETE_MESSAGE, entry->name));
 }
 
 static void BeginEditSecondaryDns()
 {
 	g_Flow = Flow_SecondaryDns;
 	g_FlowStep = 0;
-	g_InputUi.BeginText(L"Secondary DNS IP address", g_Config.m_Settings.secondaryDns, true);
+	g_InputUi.BeginText(T(TEXT_DIALOG_SECONDARY_IP_TITLE), g_Config.m_Settings.secondaryDns, true);
 }
 
 static void SaveSettings()
@@ -175,7 +180,7 @@ static void SaveSettings()
 
 static void PromptForPrimary()
 {
-	g_InputUi.BeginText(L"Primary DNS IP address", g_FlowPrimary, true);
+	g_InputUi.BeginText(T(TEXT_DIALOG_PRIMARY_IP_TITLE), g_FlowPrimary, true);
 }
 
 /* Called every frame on the XMB thread; turns a finished UI into a config change. */
@@ -219,7 +224,7 @@ void UpdateDnsFlow()
 		{
 			g_Config.m_DnsServers.erase(g_Config.m_DnsServers.begin() + g_FlowIndex);
 			g_Config.Save();
-			Notify(L"DNS server deleted.", vsh::NotifySound::OK);
+			Notify(T(TEXT_NOTIFY_DNS_DELETED), vsh::NotifySound::OK);
 		}
 
 		return;
@@ -233,7 +238,7 @@ void UpdateDnsFlow()
 		g_Config.ResetToDefaults();
 		g_Config.Save();
 
-		Notify(L"Defaults restored.", vsh::NotifySound::OK);
+		Notify(T(TEXT_NOTIFY_DEFAULTS_RESTORED), vsh::NotifySound::OK);
 
 		return;
 	}
@@ -245,13 +250,13 @@ void UpdateDnsFlow()
 
 		if (!IsValidIpv4(text))
 		{
-			Notify(L"Invalid IP address.", vsh::NotifySound::Error);
+			Notify(T(TEXT_NOTIFY_INVALID_IP), vsh::NotifySound::Error);
 			return;
 		}
 
 		g_Config.m_Settings.secondaryDns = text;
 		g_Config.Save();
-		Notify(L"Secondary DNS updated.", vsh::NotifySound::OK);
+		Notify(T(TEXT_NOTIFY_SECONDARY_UPDATED), vsh::NotifySound::OK);
 		return;
 	}
 
@@ -284,7 +289,7 @@ void UpdateDnsFlow()
 
 	if (!IsValidIpv4(text))
 	{
-		Notify(L"Invalid IP address.", vsh::NotifySound::Error);
+		Notify(T(TEXT_NOTIFY_INVALID_IP), vsh::NotifySound::Error);
 		return;
 	}
 
@@ -297,13 +302,13 @@ void UpdateDnsFlow()
 	{
 		g_Config.m_DnsServers[g_FlowIndex] = entry;
 		g_Config.Save();
-		Notify(L"DNS server updated.", vsh::NotifySound::OK);
+		Notify(T(TEXT_NOTIFY_DNS_UPDATED), vsh::NotifySound::OK);
 	}
 	else
 	{
 		g_Config.m_DnsServers.push_back(entry);
 		g_Config.Save();
-		Notify(L"DNS server added.", vsh::NotifySound::OK);
+		Notify(T(TEXT_NOTIFY_DNS_ADDED), vsh::NotifySound::OK);
 	}
 }
 
@@ -337,15 +342,7 @@ static void BeginInstructions()
 	g_Flow = Flow_None;
 	g_FlowStep = 0;
 
-	g_InputUi.BeginInfo(L"How to use qDNSm without auto reconnect",
-		"1. Pick a DNS server from the list.\n"
-		"2. Go to Settings > Network Settings\n"
-		"3. Press X on Internet connection.\n"
-		"3. Select Disable.\n"
-		"3. Press X on Internet connection again.\n"
-		"4. Select Enable.\n"
-		"5. You're now using the DNS server you picked."
-		);
+	g_InputUi.BeginInfo(T(TEXT_HELP_TITLE), T(TEXT_HELP_BODY));
 }
 
 static void BeginAbout()
@@ -356,17 +353,67 @@ static void BeginAbout()
 
 	/* Lines kept short deliberately: DrawInfo clips rather than wraps, because wrapping needs font
 	 * metrics this module has no way to query. */
-	g_InputUi.BeginInfo(L"About",
-		"A quick DNS switcher for the PlayStation 3.\n"
-		"\n"
-		"Version " QDNSM_VERSION_ASCII "\n"
-		"\n"
-		"Free to use.\n"
-		"https://github.com/Tha14/qDNSm",
-		L"Developed by",
+	g_InputUi.BeginInfo(T(TEXT_ABOUT_TITLE),
+		FormatText(TEXT_ABOUT_BODY, QDNSM_VERSION),
+		T(TEXT_ABOUT_CREDIT_LABEL),
 		L"Tha_14",
 		L"qDNSm",
 		true);
+}
+
+static const wchar_t* const kLanguageNames[] =
+{
+	L"English",
+	L"Deutsch",
+	L"Espa\u00f1ol",
+	L"Fran\u00e7ais",
+	L"Italiano",
+	L"Portugu\u00eas (Brasil)",
+	L"Portugu\u00eas (Portugal)",
+	L"\u0420\u0443\u0441\u0441\u043a\u0438\u0439",
+	L"Polski",
+	L"\u65e5\u672c\u8a9e",
+	L"\u7b80\u4f53\u4e2d\u6587",
+};
+
+static std::wstring LanguageName(int index)
+{
+	if (index == 0)
+		return T(TEXT_LANGUAGE_AUTO);
+
+	const int nameCount = static_cast<int>(sizeof(kLanguageNames) / sizeof(kLanguageNames[0]));
+
+	if ((index > 0) && (index <= nameCount))
+		return kLanguageNames[index - 1];
+
+	return T(TEXT_LANGUAGE_AUTO);
+}
+
+static void ApplyLanguage(int index)
+{
+	const char* code = Language_CodeAtIndex(index);
+	std::string previous = g_Config.m_Settings.language;
+
+	g_Config.m_Settings.language = code;
+
+	if (!g_Config.Save())
+	{
+		g_Config.m_Settings.language = previous;
+		NotifyError(T(TEXT_ERROR_SAVE_LANGUAGE));
+		return;
+	}
+
+	if (!Language_Init(Language_ResolveConfiguredCode(code)))
+	{
+		g_Config.m_Settings.language = previous;
+		g_Config.Save();
+		Language_Init(Language_ResolveConfiguredCode(previous));
+		Language_LoadAll();
+		NotifyError(T(TEXT_ERROR_SAVE_LANGUAGE));
+		return;
+	}
+
+	Language_LoadAll();
 }
 
 void OptionsSubmenu()
@@ -375,44 +422,56 @@ void OptionsSubmenu()
 	AsciiToWide(secondary, g_Config.m_Settings.secondaryDns);
 
 	if (secondary.empty())
-		secondary = L"Not set";
+		secondary = T(TEXT_OPTIONS_NOT_SET);
 
-	g_Menu.Option(L"Secondary DNS").RightText(secondary).Action([]
+	g_Menu.Option(T(TEXT_OPTIONS_SECONDARY_DNS)).RightText(secondary).Action([]
 	{
 		BeginEditSecondaryDns();
 	});
 
-	g_Menu.Option(L"Startup notification")
+	g_Menu.Option(T(TEXT_OPTIONS_STARTUP_NOTIFICATION))
 		.Toggle(g_Config.m_Settings.showNotification, SaveSettings, SaveSettings);
 
-	g_Menu.Option(L"Auto reconnect")
+	g_Menu.Option(T(TEXT_OPTIONS_AUTO_RECONNECT))
 		.Toggle(g_Config.m_Settings.autoReconnect, SaveSettings, SaveSettings);
 
-	g_Menu.Option(L"Show supported games")
+	g_Menu.Option(T(TEXT_OPTIONS_SHOW_GAMES))
 		.Toggle(g_Config.m_Settings.showSupportedGames, SaveSettings, SaveSettings);
 
-	g_Menu.Option(L"Update DNS list")
-		.RightText(IsNetUpdateBusy() ? L"Updating..." : L"")
+	int languageIndex = Language_IndexOfCode(g_Config.m_Settings.language);
+	int previousLanguage = languageIndex;
+	std::vector<std::wstring> languageNames;
+
+	for (int i = 0; i < Language_CodeCount(); i++)
+		languageNames.push_back(LanguageName(i));
+
+	g_Menu.Option(T(TEXT_OPTIONS_LANGUAGE)).Strings(languageNames, languageIndex);
+
+	if (languageIndex != previousLanguage)
+		ApplyLanguage(languageIndex);
+
+	g_Menu.Option(T(TEXT_OPTIONS_UPDATE_DNS))
+		.RightText(IsNetUpdateBusy() ? T(TEXT_OPTIONS_UPDATING) : L"")
 		.Action([]
 	{
 		if (IsNetUpdateBusy())
 			return;
 
 		if (!StartNetUpdate())
-			NotifyError(L"Update could not start.");
+			NotifyError(T(TEXT_NOTIFY_UPDATE_START_FAILED));
 	});
 
-	g_Menu.Option(L"How to use manually").Action([]
+	g_Menu.Option(T(TEXT_OPTIONS_HOW_TO)).Action([]
 	{
 		BeginInstructions();
 	});
 
-	g_Menu.Option(L"About").Action([]
+	g_Menu.Option(T(TEXT_OPTIONS_ABOUT)).Action([]
 	{
 		BeginAbout();
 	});
 
-	g_Menu.Option(L"Restore defaults").Action([]
+	g_Menu.Option(T(TEXT_OPTIONS_RESTORE)).Action([]
 	{
 		BeginRestoreDefaults();
 	});
@@ -448,12 +507,12 @@ void MainSubmenu()
 		});
 	}
 
-	g_Menu.Option(L"" ENTRY_PREFIX_ADD L"Add new DNS server").Action([]
+	g_Menu.Option(std::wstring(ENTRY_PREFIX_ADD) + T(TEXT_MENU_ADD_SERVER)).Action([]
 	{
 		BeginAdd();
 	});
 
-	g_Menu.Option(L"" ENTRY_PREFIX_OPTIONS L"qDNSm options").Submenu(OptionsSubmenu);
+	g_Menu.Option(std::wstring(ENTRY_PREFIX_OPTIONS) + T(TEXT_MENU_OPTIONS)).Submenu(OptionsSubmenu);
 
 	g_GameListPanel.SetHoveredIndex(hoveredIndex);
 	g_Menu.SetOverlay([]

@@ -15,6 +15,7 @@ struct ConfigSettings
 	bool showNotification{};
 	bool autoReconnect{true};
 	bool showSupportedGames{};
+	std::string language{"auto"};
 	bool managedFormat{};
 };
 

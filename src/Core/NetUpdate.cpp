@@ -8,6 +8,7 @@
 #include "GameList.hpp"
 #include "GameListPanel.hpp"
 #include "InputUi.hpp"
+#include "Language.hpp"
 
 #include <cell/cell_fs.h>
 #include <sys/ppu_thread.h>
@@ -311,31 +312,31 @@ void PollNetUpdate()
 
 	if (dnsApplied && !result.gamesRequested)
 	{
-		message = L"DNS list updated. Supported games are off.";
+		message = T(TEXT_UPDATE_DNS_ONLY);
 	}
 	else if (dnsApplied && gamesApplied)
 	{
-		message = L"DNS list and game lists updated.";
+		message = T(TEXT_UPDATE_BOTH);
 	}
 	else if (dnsApplied)
 	{
 		if (result.gamesInvalid)
-			message = L"DNS list updated. Game list was invalid; previous file kept.";
+			message = T(TEXT_UPDATE_GAME_INVALID);
 		else
-			message = L"DNS list updated. Game list was not updated.";
+			message = T(TEXT_UPDATE_GAME_NOT_UPDATED);
 
 		icon = vsh::NotifyIcon::Caution;
 		sound = vsh::NotifySound::Error;
 	}
 	else if (gamesApplied)
 	{
-		message = L"DNS update failed. Game list updated.";
+		message = T(TEXT_UPDATE_DNS_FAILED);
 		icon = vsh::NotifyIcon::Caution;
 		sound = vsh::NotifySound::Error;
 	}
 	else
 	{
-		message = L"Update failed. No changes were applied.";
+		message = T(TEXT_UPDATE_FAILED);
 		icon = vsh::NotifyIcon::Caution;
 		sound = vsh::NotifySound::Error;
 	}

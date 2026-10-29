@@ -4,6 +4,7 @@
 #include "GameList.hpp"
 #include "Input.hpp"
 #include "InputUi.hpp"
+#include "Language.hpp"
 #include "Renderer.hpp"
 #include "Menu/Base.hpp"
 #include "Utils/Std.hpp"
@@ -267,7 +268,8 @@ std::wstring GameListPanel::AliasLine() const
 	if (m_Aliases.empty())
 		return std::wstring();
 
-	std::wstring body = L"Also used by: ";
+	std::wstring body = T(TEXT_GAMELIST_ALSO_USED_BY);
+	body += L" ";
 	std::wstring marker;
 
 	const size_t shown = (m_Aliases.size() > 3) ? 3 : m_Aliases.size();
@@ -304,7 +306,7 @@ void GameListPanel::HandleSelect()
 	if (!g_Config.Save())
 	{
 		g_Config.m_Settings.showSupportedGames = previous;
-		NotifyError(L"Failed to save the supported-games setting.");
+		NotifyError(T(TEXT_GAMELIST_SAVE_FAILED));
 		return;
 	}
 
@@ -505,7 +507,7 @@ void GameListPanel::Draw()
 	const paf::vec4 textColor(1.0f, 1.0f, 1.0f, fade);
 	const paf::vec4 dimColor(1.0f, 1.0f, 1.0f, 0.66f * fade);
 
-	DrawText(L"Supported games", left, top - 28.0f, 16.0f, textColor, Renderer::Left);
+	DrawText(T(TEXT_GAMELIST_TITLE), left, top - 28.0f, 16.0f, textColor, Renderer::Left);
 
 	if (m_State == Panel_Ready)
 	{
@@ -524,21 +526,21 @@ void GameListPanel::Draw()
 	switch (m_State)
 	{
 		case Panel_MissingFile:
-			message0 = L"No supported-games file.";
-			message1 = L"Copy qDNSm-server-games.ini.";
+			message0 = T(TEXT_GAMELIST_MISSING_FILE);
+			message1 = T(TEXT_GAMELIST_MISSING_HINT);
 			break;
 
 		case Panel_Unreadable:
-			message0 = L"Could not read supported-games file.";
+			message0 = T(TEXT_GAMELIST_UNREADABLE);
 			break;
 
 		case Panel_Invalid:
-			message0 = L"Supported-games file is invalid.";
+			message0 = T(TEXT_GAMELIST_INVALID);
 			break;
 
 		case Panel_NoSection:
 		case Panel_EmptySection:
-			message0 = L"No games listed for this server.";
+			message0 = T(TEXT_GAMELIST_EMPTY);
 			break;
 
 		default:
@@ -566,7 +568,7 @@ void GameListPanel::Draw()
 
 	const float footerY = bottom + 28.0f;
 
-	DrawText(L"\uF88E: Hide", left, footerY, 12.0f, dimColor, Renderer::Left);
+	DrawText(T(TEXT_GAMELIST_HIDE), left, footerY, 12.0f, dimColor, Renderer::Left);
 
 	if ((m_State == Panel_Ready) && (m_Games.size() > static_cast<size_t>(VISIBLE_ROWS)))
 	{
@@ -580,7 +582,7 @@ void GameListPanel::Draw()
 		page += L" / ";
 		page += to_wstring(static_cast<uint64_t>(m_Games.size()));
 
-		DrawText(L"\uF888/\uF88B: Page", x, footerY, 11.0f, dimColor, Renderer::Centered);
+		DrawText(T(TEXT_GAMELIST_PAGE), x, footerY, 11.0f, dimColor, Renderer::Centered);
 		DrawText(page, right, footerY, 11.0f, dimColor, Renderer::Right);
 	}
 }

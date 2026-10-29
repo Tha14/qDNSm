@@ -198,7 +198,7 @@ private:
    Function m_SubmenuDelay{};
 
    static const unsigned maxSubmenuLevels = 20;
-   static const unsigned maxOptionsPerPage = 5;
+   static const unsigned maxOptionsPerPage = 7;
    Function m_LastSubmenu[maxSubmenuLevels]{};
    MenuSelection m_LastSelection[maxSubmenuLevels]{};
 
@@ -223,6 +223,9 @@ private:
    float m_HighlightBarPosY = 0;
 
    uint64_t m_SliderDelay = 60;
+   bool m_StringOptionHeld{};
+   uint64_t m_StringOptionNextRepeat{};
+   bool m_LanguageUnloaded{ true };
 
    std::wstring m_DescriptionText;
 

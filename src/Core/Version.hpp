@@ -13,5 +13,5 @@
  *
  * Changing the version means editing this file and nothing else.
  */
-#define QDNSM_VERSION        L"1.2"
-#define QDNSM_VERSION_ASCII  "1.2"
+#define QDNSM_VERSION        L"1.3"
+#define QDNSM_VERSION_ASCII  "1.3"

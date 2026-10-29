@@ -9,6 +9,8 @@
 #include "Core/Menu/Submenus.hpp"
 #include "Core/Hooks.hpp"
 #include "Core/Config.hpp"
+#include "Core/Language.hpp"
+#include "Core/LanguageSystem.hpp"
 #include "Core/Network.hpp"   // StartManualDnsWorker
 
 #include "Core/NetUpdate.hpp" // StopNetUpdate
@@ -146,6 +148,7 @@ int module_start(unsigned int args, void* argp)
       WaitForStableXmb();
 
       g_Config.Load();
+      Language_Init(Language_ResolveConfiguredCode(g_Config.m_Settings.language));
 
       g_Input = Input();
       g_Renderer = Renderer();
@@ -176,7 +179,7 @@ int module_start(unsigned int args, void* argp)
 
 	  if (g_Config.m_Settings.showNotification)
 	  {
-		  const wchar_t* message = vsh::wva(L"qDNSm Loaded.\nPress \uF88B + \uF88C + \uF88D to open the menu.");
+		  const wchar_t* message = T(TEXT_NOTIFY_LOADED);
 		  vsh::ShowNotificationWithIcon(message, vsh::NotifyIcon::Info, vsh::NotifySound::None);
 	  }
 

@@ -1,5 +1,6 @@
 #include "Network.hpp"
 #include "Config.hpp"   // AsciiToWide
+#include "Language.hpp"
 
 #include <sys/ppu_thread.h>
 
@@ -271,17 +272,11 @@ DnsApplyPhase GetDnsApplyPhase()
 
 static void ShowReconnectFailure(bool willFail)
 {
+	const wchar_t* message = T(willFail
+		? TEXT_NOTIFY_RECONNECT_WILL_FAIL
+		: TEXT_NOTIFY_RECONNECT_FAILED);
 
-	std::string message = willFail
-		? "Automatic reconnect will fail."
-		: "Automatic reconnect failed.";
-	message += "\nDisable it from the qDNSm options menu.";
-
-	std::wstring wide;
-
-	AsciiToWide(wide, message);
-
-	vsh::ShowNotificationWithIcon(wide, vsh::NotifyIcon::Caution,
+	vsh::ShowNotificationWithIcon(message, vsh::NotifyIcon::Caution,
 		vsh::NotifySound::Error);
 }
 
@@ -332,17 +327,13 @@ static void NetworkThread(uint64_t)
 	{
 		if (s_ReconnectName[0] != '\0')
 		{
+			std::wstring name;
+			AsciiToWide(name, s_ReconnectName);
 
-			std::string message = "DNS was changed to ";
-			message += s_ReconnectName;
-			message += ".";
+			std::wstring message = FormatText(TEXT_NOTIFY_DNS_CHANGED, name);
 
-			std::wstring wide;
-
-			AsciiToWide(wide, message);
-
-			vsh::ShowNotificationWithIcon(wide, vsh::NotifyIcon::BlueVerifiedCheckmark,
-				vsh::NotifySound::OK);
+			vsh::ShowNotificationWithIcon(message.c_str(),
+				vsh::NotifyIcon::BlueVerifiedCheckmark, vsh::NotifySound::OK);
 		}
 		else
 		{

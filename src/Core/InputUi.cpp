@@ -2,6 +2,7 @@
 #include "Input.hpp"
 #include "Renderer.hpp"
 #include "Config.hpp"
+#include "Language.hpp"
 #include <vsh/stdc.hpp>
 
 InputUi g_InputUi;
@@ -78,7 +79,7 @@ void InputUi::BeginText(const std::wstring& title, const std::string& initial, b
 	m_HasResult = false;
 }
 
-void InputUi::BeginConfirm(const std::wstring& title, const std::string& message)
+void InputUi::BeginConfirm(const std::wstring& title, const std::wstring& message)
 {
 	m_InfoHeading.clear();
 	m_InfoCenterBody = false;
@@ -88,7 +89,7 @@ void InputUi::BeginConfirm(const std::wstring& title, const std::string& message
 
 	m_Mode = Mode_Confirm;
 	m_Title = title;
-	m_Message = Widen(message);
+	m_Message = message;
 	m_Text.clear();
 
 	m_ConfirmYes = false;
@@ -391,20 +392,20 @@ void InputUi::DrawConfirm()
 	else
 		DrawSelection(noX + (buttonWidth / 2.0f), y + (buttonHeight / 2.0f), buttonWidth, buttonHeight);
 
-	g_Renderer.Text(L"No", paf::vec2(noX + (buttonWidth / 2.0f), y + (buttonHeight / 2.0f)), 24.0f,
+	g_Renderer.Text(T(TEXT_INPUT_NO), paf::vec2(noX + (buttonWidth / 2.0f), y + (buttonHeight / 2.0f)), 24.0f,
 		paf::vec4(1.0f, 1.0f, 1.0f, 1.0f), Renderer::Centered, Renderer::Centered);
 
-	g_Renderer.Text(L"Yes", paf::vec2(yesX + (buttonWidth / 2.0f), y + (buttonHeight / 2.0f)), 24.0f,
+	g_Renderer.Text(T(TEXT_INPUT_YES), paf::vec2(yesX + (buttonWidth / 2.0f), y + (buttonHeight / 2.0f)), 24.0f,
 		paf::vec4(1.0f, 1.0f, 1.0f, 1.0f), Renderer::Centered, Renderer::Centered);
 }
 
-void InputUi::BeginInfo(const std::wstring& title, const std::string& message,
+void InputUi::BeginInfo(const std::wstring& title, const std::wstring& message,
 	const std::wstring& creditLabel, const std::wstring& credit,
 	const std::wstring& heading, bool centerBody)
 {
 	m_Mode = Mode_Info;
 	m_Title = title;
-	m_Message = Widen(message);
+	m_Message = message;
 	m_InfoHeading = heading;
 	m_InfoCenterBody = centerBody;
 	m_CreditLabel = creditLabel;
@@ -514,7 +515,7 @@ void InputUi::Draw()
 	if (m_Mode == Mode_Confirm)
 	{
 		DrawConfirm();
-		DrawFooter(L"X: select    Circle: cancel", L"");
+		DrawFooter(T(TEXT_INPUT_CONFIRM_FOOTER), L"");
 		return;
 	}
 
@@ -523,7 +524,7 @@ void InputUi::Draw()
 	if (m_Mode == Mode_Info)
 	{
 		DrawInfo();
-		DrawFooter(L"Circle or R1: close", L"");
+		DrawFooter(T(TEXT_INPUT_INFO_FOOTER), L"");
 		return;
 	}
 
@@ -534,5 +535,5 @@ void InputUi::Draw()
 	else
 		DrawCharacterGrid();
 
-	DrawFooter(L"X: type    Square: backspace    L1: case", L"Circle: cancel    R1/Start: done");
+	DrawFooter(T(TEXT_INPUT_TEXT_FOOTER_LEFT), T(TEXT_INPUT_TEXT_FOOTER_RIGHT));
 }

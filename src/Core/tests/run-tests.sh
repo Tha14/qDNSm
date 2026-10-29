@@ -12,7 +12,11 @@ g++ -std=c++11 -Wall -Wextra -DQDNSM_HOST_TEST \
     -o "$OUT/test" \
     "$DIR/test.cpp" \
     "$CORE/GameList.cpp" \
-    "$CORE/DnsList.cpp"
+    "$CORE/DnsList.cpp" \
+    "$CORE/Language.cpp" \
+    "$CORE/LanguageCodec.cpp" \
+    "$CORE/LanguageCompression.cpp" \
+    "$CORE/LanguageTable.generated.cpp"
 
 echo
 "$OUT/test"

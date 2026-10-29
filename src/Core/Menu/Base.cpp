@@ -2,6 +2,7 @@
 #include "../InputUi.hpp"
 #include "../Config.hpp"
 #include "../Version.hpp"   // QDNSM_VERSION
+#include "../Language.hpp"
 #include <functional>
 
 Menu g_Menu;
@@ -214,6 +215,10 @@ bool Menu::IsEditPressed()
 void Menu::OnOpen()
 {
    m_StateOpened = true;
+   m_StringOptionHeld = false;
+   m_StringOptionNextRepeat = 0;
+   m_LanguageUnloaded = false;
+   Language_LoadAll();
    m_CurrentMenu = (m_SavedMenu == nullptr) ? m_MainMenu : m_SavedMenu;
    m_SubmenuLevel = (m_SavedMenu == nullptr) ? 0 : m_SavedSubmenuLevel;
 
@@ -456,6 +461,12 @@ void Menu::UpdateUI()
       return;
    }
 
+   if (!m_StateOpened && (m_OpacityGlobal == 0.0) && !m_InputLocked && !m_LanguageUnloaded)
+   {
+      Language_Unload();
+      m_LanguageUnloaded = true;
+   }
+
    if (m_OpacityGlobal > 0.0)
    {
       m_PrintingOption = 0;
@@ -532,9 +543,15 @@ void Menu::OnUpdate()
 
 void Menu::DrawHeader()
 {
+	const float bodyTop = position.y + m_SizeBackground / 2.0f;
+	const float headerCenterY = bodyTop + sizeHeader / 2.0f - 16.0f;
+	const float titleY = headerCenterY + 5.05f;
+	const float versionY = headerCenterY + 1.35f;
+	const float iconY = headerCenterY + 7.70f;
+
     // Background
     g_Renderer.Rectangle(
-        paf::vec2(position.x, position.y + m_SizeBackground / 3.3 + m_SizeBackgroundSpace + sizeText / 2 + sizeHeader / 6.1),
+        paf::vec2(position.x, headerCenterY),
 		paf::vec2(sizeWidth, sizeHeader),
         paf::vec4(colorMenu.r, colorMenu.g, colorMenu.b, m_OpacityBackground),
         Renderer::Centered,
@@ -543,7 +560,7 @@ void Menu::DrawHeader()
     // Title
     g_Renderer.Text(
         L"qDNSm",
-		paf::vec2(position.x, position.y + m_SizeBackground / 2.54 + sizeTextHeader / 2 + sizeHeader / 7.10),
+		paf::vec2(position.x, titleY),
         sizeTextHeader,
         paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
         Renderer::Centered,
@@ -552,7 +569,7 @@ void Menu::DrawHeader()
 	// Version Number
 	g_Renderer.Text(
 		L"v" QDNSM_VERSION,
-		paf::vec2(position.x + sizeWidth / 2 - m_SizeBackgroundSpace / 4, position.y + m_SizeBackground / 2.7 + sizeTextHeader / 2 + sizeHeader / 8.9),
+		paf::vec2(position.x + sizeWidth / 2 - m_SizeBackgroundSpace / 4, versionY),
 		sizeText / 1.7,
 		paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
 		Renderer::Right,
@@ -561,7 +578,7 @@ void Menu::DrawHeader()
 	// Animated Flame Icon
 	g_Renderer.Text(
 		L"\uF477",
-		paf::vec2(position.x - sizeWidth / 2 - m_SizeBackgroundSpace / 4.78, position.y + m_SizeBackground / 3.15 + sizeTextHeader / 2 + sizeHeader / 2.4),
+		paf::vec2(position.x - sizeWidth / 2 - m_SizeBackgroundSpace / 4.78, iconY),
 		sizeText * 1.60,
 		paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
 		Renderer::Left,
@@ -615,18 +632,17 @@ void Menu::DrawFooter()
 
 	if (m_InputLocked)
 	{
-		instructions = L"Please wait...\n\uF880: Close";
+		instructions = T(TEXT_FOOTER_WAIT_CLOSE);
 	}
 	else if (m_CurrentMenu == m_MainMenu)
 	{
-		instructions = L"\uF881: Apply | \uF882: Edit | \uF883: Delete\n\uF88E: ";
-		instructions += g_Config.m_Settings.showSupportedGames
-			? L"Hide supported games"
-			: L"Show supported games";
+		instructions = T(g_Config.m_Settings.showSupportedGames
+			? TEXT_FOOTER_MAIN_HIDE
+			: TEXT_FOOTER_MAIN_SHOW);
 	}
 	else
 	{
-		instructions = L"Actions for the selected entry:\n\uF881: Apply | \uF882: Edit | \uF883: Delete";
+		instructions = T(TEXT_FOOTER_ACTIONS);
 	}
 
 	g_Renderer.Text(
@@ -668,7 +684,7 @@ void Menu::DrawBusyOverlay()
 
     const wchar_t* dots[] = { L"", L".", L"..", L"..." };
     int dot = static_cast<int>((GetTimeNow() / 350) % 4);
-    std::wstring wait = L"Please wait";
+    std::wstring wait = T(TEXT_BUSY_PLEASE_WAIT);
     wait += dots[dot];
 
     g_Renderer.Rectangle(
@@ -693,7 +709,7 @@ void Menu::DrawBusyOverlay()
         Renderer::Centered);
 
     g_Renderer.TextOnTop(
-        m_BusyReconnecting ? L"Reconnecting..." : L"Applying DNS...",
+        m_BusyReconnecting ? T(TEXT_BUSY_RECONNECTING) : T(TEXT_BUSY_APPLYING),
         paf::vec2(position.x, position.y + 9.0f),
         sizeText / 1.15f,
         paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
@@ -904,12 +920,50 @@ Menu& Menu::Strings(const std::vector<std::wstring>& items, int& index)
 {
     int min = 0;
     int max = static_cast<int>(items.size()) - 1;
-    processOptionItemControls<int>(index, min, max, 1);
+    const uint64_t repeatDelay = 250;
+    const bool leftHeld = g_Input.IsButtonHeld(Input::BUTTON_PAD_LEFT);
+    const bool rightHeld = g_Input.IsButtonHeld(Input::BUTTON_PAD_RIGHT);
+
+    if (!leftHeld && !rightHeld)
+    {
+        m_StringOptionHeld = false;
+        m_StringOptionNextRepeat = 0;
+    }
+    else if (IsHovered())
+    {
+        const uint64_t timeNow = GetTimeNow();
+        bool step = false;
+
+        if (!m_StringOptionHeld)
+        {
+            m_StringOptionHeld = true;
+            m_StringOptionNextRepeat = timeNow + repeatDelay;
+            step = true;
+        }
+        else if (timeNow >= m_StringOptionNextRepeat)
+        {
+            m_StringOptionNextRepeat = timeNow + repeatDelay;
+            step = true;
+        }
+
+        if (step)
+        {
+            if (leftHeld && !rightHeld && (index > min))
+                index--;
+            else if (rightHeld && !leftHeld && (index < max))
+                index++;
+        }
+    }
+    else
+    {
+        m_StringOptionHeld = false;
+        m_StringOptionNextRepeat = 0;
+    }
 
     if (index > static_cast<int>(items.size()) || index < 0)
     {
         g_Renderer.Text(
-            L"error (" + to_wstring(index) + L")",
+            FormatText(TEXT_MENU_INDEX_ERROR, to_wstring(index)),
             paf::vec2(
                 position.x + sizeWidth / 2 - m_SizeBackgroundSpace / 2,
                 position.y + m_SizeBackground / 2 - m_SizeBackgroundSpace - (m_PrintingOption - m_Selection.index) * sizeText - sizeText / 2),

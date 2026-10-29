@@ -1,5 +1,7 @@
 #include "../GameList.hpp"
 #include "../DnsList.hpp"
+#include "../Language.hpp"
+#include "../LanguageCodec.hpp"
 
 #include <cstdio>
 
@@ -237,11 +239,99 @@ static void TestMerge()
 	Check(!error.empty(), "overflow has an error");
 }
 
+static void TestLanguage()
+{
+	Check(DecodeUtf8("qDNSm") == std::wstring(L"qDNSm"), "UTF-8 ASCII decodes");
+	Check(DecodeUtf8("\xC3\xA9") == std::wstring(L"\u00e9"), "UTF-8 two-byte decodes");
+	Check(DecodeUtf8("\xEF\xA2\x8B") == std::wstring(L"\uF88B"), "UTF-8 glyph decodes");
+	Check(DecodeUtf8("\xE2\x28\xA1").find(static_cast<wchar_t>(0xFFFD)) != std::wstring::npos,
+		"invalid UTF-8 becomes replacement character");
+
+	Check(Language_IsValidCode("auto"), "auto is a valid language code");
+	Check(Language_IsValidCode("pt_BR"), "pt_BR is a valid language code");
+	Check(Language_IsValidCode("ru"), "ru is a valid language code");
+	Check(Language_IsValidCode("pl"), "pl is a valid language code");
+	Check(Language_IsValidCode("ja"), "ja is a valid language code");
+	Check(Language_IsValidCode("zh_CN"), "zh_CN is a valid language code");
+	Check(!Language_IsValidCode("xx"), "unknown language code is rejected");
+	Check(std::string(Language_MapSystemLanguage(0)) == "de", "system language 0 maps to German");
+	Check(std::string(Language_MapSystemLanguage(7)) == "ru", "system language 7 maps to Russian");
+	Check(std::string(Language_MapSystemLanguage(8)) == "ja", "system language 8 maps to Japanese");
+	Check(std::string(Language_MapSystemLanguage(11)) == "zh_CN", "system language 11 maps to Simplified Chinese");
+	Check(std::string(Language_MapSystemLanguage(16)) == "pl", "system language 16 maps to Polish");
+	Check(std::string(Language_MapSystemLanguage(17)) == "pt_BR", "system language 17 maps to Brazilian Portuguese");
+	Check(std::string(Language_MapSystemLanguage(99)) == "en", "unknown system language falls back to English");
+	Check(Language_IndexOfCode("fr") == 4, "French index");
+
+	Check(Language_Init("en"), "English initializes");
+	Check(std::wstring(T(TEXT_INPUT_YES)) == std::wstring(L"Yes"), "English Yes");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"No"), "English No");
+
+	Check(Language_Init("de"), "German initializes");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"Nein"), "German No");
+	Check(std::wstring(T(TEXT_INPUT_YES)) == std::wstring(L"Ja"), "German Yes");
+	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Auto"), "German Auto");
+	Check(FormatText(TEXT_NOTIFY_DNS_SET_MANUAL, L"X").find(L"DNS auf X gesetzt.") == 0,
+		"German formatted notification");
+
+	Check(Language_Init("es"), "Spanish initializes");
+	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Autom\u00e1tico"), "Spanish Auto");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"No"), "Spanish No");
+
+	Check(Language_Init("fr"), "French initializes");
+	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Automatique"), "French Auto");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"Non"), "French No");
+
+	Check(Language_Init("it"), "Italian initializes");
+	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Automatico"), "Italian Auto");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"No"), "Italian No");
+
+	Check(Language_Init("pt_BR"), "Brazilian Portuguese initializes");
+	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Autom\u00e1tico"), "Brazilian Portuguese Auto");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"N\u00e3o"), "Brazilian Portuguese No");
+
+	Check(Language_Init("pt_PT"), "European Portuguese initializes");
+	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Autom\u00e1tico"), "European Portuguese Auto");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"N\u00e3o"), "European Portuguese No");
+
+	Check(Language_Init("ru"), "Russian initializes");
+	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"\u0410\u0432\u0442\u043e"), "Russian Auto");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"\u041d\u0435\u0442"), "Russian No");
+
+	Check(Language_Init("pl"), "Polish initializes");
+	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Auto"), "Polish Auto");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"Nie"), "Polish No");
+
+	Check(Language_Init("ja"), "Japanese initializes");
+	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"\u81ea\u52d5"), "Japanese Auto");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"\u3044\u3044\u3048"), "Japanese No");
+
+	Check(Language_Init("zh_CN"), "Simplified Chinese initializes");
+	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"\u81ea\u52a8"), "Simplified Chinese Auto");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"\u5426"), "Simplified Chinese No");
+
+	Check(Language_Init("pt_PT"), "Portuguese reselected for unload test");
+	Language_Unload();
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"N\u00e3o"), "language reloads after unload");
+	Language_LoadAll();
+	Check(std::wstring(T(TEXT_INPUT_YES)) == std::wstring(L"Sim"), "language loads all after unload");
+
+	for (int language = 1; language < Language_CodeCount(); language++)
+	{
+		Check(Language_Init(Language_CodeAtIndex(language)), "catalog initializes");
+		Language_LoadAll();
+
+		for (int text = 0; text < TEXT_COUNT; text++)
+			Check(!TS(static_cast<TextId>(text)).empty(), "catalog entry is not empty");
+	}
+}
+
 int main()
 {
 	TestGameList();
 	TestDnsList();
 	TestMerge();
+	TestLanguage();
 
 	if (g_Failures != 0)
 	{

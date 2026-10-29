@@ -53,7 +53,7 @@ public:
 	InputUi() = default;
 
 	void BeginText(const std::wstring& title, const std::string& initial, bool numeric);
-	void BeginConfirm(const std::wstring& title, const std::string& message);
+	void BeginConfirm(const std::wstring& title, const std::wstring& message);
 
 	/*
 	 * Read-only text screen. Newlines in the message start new lines; a blank line is drawn as a
@@ -74,7 +74,7 @@ public:
 	 *
 	 * Lines are clipped, not wrapped - see the implementation.
 	 */
-	void BeginInfo(const std::wstring& title, const std::string& message,
+	void BeginInfo(const std::wstring& title, const std::wstring& message,
 		const std::wstring& creditLabel = L"", const std::wstring& credit = L"",
 		const std::wstring& heading = L"", bool centerBody = false);
 

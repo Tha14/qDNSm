@@ -180,6 +180,11 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
     <ClCompile Include="Core\DnsList.cpp" />
     <ClCompile Include="Core\GameList.cpp" />
     <ClCompile Include="Core\GameListPanel.cpp" />
+    <ClCompile Include="Core\Language.cpp" />
+    <ClCompile Include="Core\LanguageCodec.cpp" />
+    <ClCompile Include="Core\LanguageCompression.cpp" />
+    <ClCompile Include="Core\LanguageSystem.cpp" />
+    <ClCompile Include="Core\LanguageTable.generated.cpp" />
     <ClCompile Include="Core\Network.cpp" />
     <ClCompile Include="Core\NetUpdate.cpp" />
     <ClCompile Include="Core\Input.cpp" />
@@ -202,6 +207,11 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
     <ClInclude Include="Core\DnsList.hpp" />
     <ClInclude Include="Core\GameList.hpp" />
     <ClInclude Include="Core\GameListPanel.hpp" />
+    <ClInclude Include="Core\Language.hpp" />
+    <ClInclude Include="Core\LanguageCodec.hpp" />
+    <ClInclude Include="Core\LanguageCompression.hpp" />
+    <ClInclude Include="Core\LanguageIds.generated.hpp" />
+    <ClInclude Include="Core\LanguageSystem.hpp" />
     <ClInclude Include="Core\Version.hpp" />
     <ClInclude Include="Core\Network.hpp" />
     <ClInclude Include="Core\NetUpdate.hpp" />
