@@ -76,6 +76,9 @@ packaging/launcher-pkgfiles/USRDIR/*
 __pycache__/
 *.pyc
 
+# Scratch output from one-off language-compression checks.
+.tmp-compress/
+
 # vendor/makepkg/*.exe - Windows PKG builders. Nothing here uses them: the
 # installer PKG is produced by packaging/make-pkg.py, and makepkg1.exe was the
 # NPDRM-only path that rejected our homebrew EBOOT outright.
