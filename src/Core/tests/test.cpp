@@ -295,7 +295,7 @@ static void TestLanguage()
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"N\u00e3o"), "European Portuguese No");
 
 	Check(Language_Init("ru"), "Russian initializes");
-	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"\u0410\u0432\u0442\u043e"), "Russian Auto");
+	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"\u0410\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0438"), "Russian Auto");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"\u041d\u0435\u0442"), "Russian No");
 
 	Check(Language_Init("pl"), "Polish initializes");
