@@ -68,6 +68,7 @@ static const DefaultDnsServer DEFAULT_DNS_SERVERS[] =
 	{ "Project Nexus", "192.236.168.216" },
 	{ "PSRevived", "167.233.79.183" },
 	{ "Monster Hunter Frontier Renewal", "152.53.209.191" },
+	{ "Full Auto - The Ascendants", "51.210.15.204" },
 	{ "Cloudflare DNS", "1.1.1.1" },
 	{ "Google DNS", "8.8.8.8" },
 };
