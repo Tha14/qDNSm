@@ -10,6 +10,8 @@ multiMAN and the rest of the homebrew menu stack.
 ![qDNSm on the XMB](resources/qDNSm_menu_loop.webp)
 
 Works on **CFW** and **PS3HEN**, on CEX, PEX, D-PEX and DEX-mode consoles.
+![GitHub Downloads](https://img.shields.io/github/downloads/Tha14/qDNSm/total?style=for-the-badge)
+
 
 ## Contents
 
@@ -83,8 +85,9 @@ there instead of editing the file by hand.
 
 ### Config file
 
-The server list lives in `qDNSm.ini`, created next to wherever the SPRX is
-loaded from (normally `/dev_hdd0/plugins/`). It is written when you add or remove
+The server list and settings, including the selected **Language**, live in
+`qDNSm.ini`, created next to wherever the SPRX is loaded from (normally
+`/dev_hdd0/plugins/`). It is written when you change a setting or add or remove
 a server and read on launch. Delete it and qDNSm rebuilds the defaults.
 
 ---
@@ -112,6 +115,7 @@ Under **qDNSm options**:
 | Startup notification | show a notification when the plugin loads |
 | Auto reconnect | restart the Internet Connection after applying DNS; on by default |
 | Show supported games | show the supported-games panel for the highlighted server; on by default |
+| Language | interface language: **Auto** (follow the console), English, Deutsch, Español, Français, Italiano, Português (Brasil), Português (Portugal), Русский, Polski, 日本語, or 简体中文 |
 | Update DNS list | download and apply the latest DNS server list; also refreshes the supported-games list when **Show supported games** is on |
 | How to use manually | the manual Internet Connection toggle steps, in-app |
 | About | version and credit |
