@@ -67,7 +67,7 @@ def valid_ipv4(value: str) -> bool:
 def parse_game_file(path: Path) -> dict:
     lines = read_ascii(path, MAX_GAME_FILE)
     sections: list[dict] = []
-    by_ip: dict[str, dict] = {}
+    by_key: dict[str, dict] = {}
     current: dict | None = None
 
     for line_number, raw in enumerate(lines, 1):
@@ -80,25 +80,25 @@ def parse_game_file(path: Path) -> dict:
             if not line.endswith("]"):
                 raise ValidationError(f"{path}:{line_number}: malformed section header")
 
-            ip = trim(line[1:-1])
-            if not valid_ipv4(ip):
-                raise ValidationError(f"{path}:{line_number}: section key is not an IPv4 address")
+            section_key = trim(line[1:-1])
+            if section_key != "OpenSpy" and not valid_ipv4(section_key):
+                raise ValidationError(f"{path}:{line_number}: section key is not an IPv4 address or OpenSpy")
 
-            if ip in by_ip:
-                raise ValidationError(f"{path}:{line_number}: duplicate section [{ip}]")
+            if section_key in by_key:
+                raise ValidationError(f"{path}:{line_number}: duplicate section [{section_key}]")
 
             if current is not None:
                 finish_game_section(path, current)
 
             current = {
-                "ip": ip,
+                "key": section_key,
                 "line": line_number,
                 "games": [],
                 "aliases": [],
                 "alias_seen": False,
             }
             sections.append(current)
-            by_ip[ip] = current
+            by_key[section_key] = current
             continue
 
         if current is None:
@@ -163,10 +163,13 @@ def parse_game_file(path: Path) -> dict:
 
 
 def finish_game_section(path: Path, section: dict) -> None:
+    if section["key"] == "OpenSpy" and section["aliases"]:
+        raise ValidationError(f'{path}:{section["line"]}: OpenSpy section accepts only Game= lines')
+
     if not section["games"]:
         if section["aliases"]:
             raise ValidationError(f'{path}:{section["line"]}: section has Aliases= but no Game=')
-        raise ValidationError(f'{path}:{section["line"]}: empty section [{section["ip"]}]')
+        raise ValidationError(f'{path}:{section["line"]}: empty section [{section["key"]}]')
 
 
 def parse_dns_file(path: Path) -> dict:
@@ -320,8 +323,10 @@ def main() -> int:
 
     dns_ips = {entry["primary"] for entry in dns["entries"]}
     for section in game["sections"]:
-        if section["ip"] not in dns_ips:
-            print(f"WARNING: game section [{section['ip']}] is not in {dns_path}", file=sys.stderr)
+        if section["key"] == "OpenSpy":
+            continue
+        if section["key"] not in dns_ips:
+            print(f"WARNING: game section [{section['key']}] is not in {dns_path}", file=sys.stderr)
 
     return 0
 
