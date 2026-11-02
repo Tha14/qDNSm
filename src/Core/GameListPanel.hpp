@@ -10,6 +10,7 @@ class GameListPanel
 {
 public:
 	void SetHoveredIndex(int index);
+	void SetOpenSpyHovered();
 	void OnFrame(bool menuOpen, bool mainMenu);
 	void Draw();
 	void Reset();
@@ -30,10 +31,12 @@ private:
 
 	void ResetData();
 	void LoadForIndex(int index);
+	void LoadForKey(const std::string& key);
 	void RebuildAliases();
 	void UpdateScroll();
 	void HandleManualScroll();
 	void HandleSelect();
+	void UpdateVisibleRows();
 	void DrawFrame(float x, float y, float width, float height, float fade);
 	void DrawText(const std::wstring& text, float x, float y, float size,
 		const paf::vec4& color, int horizontalAlign);
@@ -41,8 +44,9 @@ private:
 
 	int m_Index = -1;
 	PanelState m_State = Panel_NoServer;
+	bool m_OpenSpy = false;
 
-	std::string m_Ip;
+	std::string m_Key;
 	std::wstring m_Name;
 
 	std::vector<std::wstring> m_Games;
@@ -50,6 +54,7 @@ private:
 	std::vector<std::wstring> m_Aliases;
 
 	size_t m_ScrollIndex = 0;
+	size_t m_VisibleRows = 12;
 	int m_ScrollDirection = 1;
 	uint64_t m_LastTick = 0;
 	uint64_t m_PauseUntil = 0;

@@ -23,6 +23,7 @@ Works on **CFW** and **PS3HEN**, on CEX, PEX, D-PEX and DEX-mode consoles.
 - [Using it](#using-it)
   - [Automatic DNS switching (default, recommended)](#automatic-dns-switching-default-recommended)
   - [Manual Internet Connection toggling (fallback)](#manual-internet-connection-toggling-fallback)
+  - [OpenSpy patching](#openspy-patching)
 - [Building from source](#building-from-source)
 - [LLM disclosure](#llm-disclosure)
 - [Credits](#credits)
@@ -76,6 +77,8 @@ qDNSm is loaded as a boot plugin. Take `qDNSm.sprx` and `qDNSmNetLib.sprx` from 
 > /dev_hdd0/plugins/qDNSm.sprx
 > /dev_hdd0/plugins/webftp_server.sprx
 > ```
+> It is highly suggested that you use webMAN MOD lite sintead of full unless you
+> need the additional features otherwise you risk tunning out of memory.
 
 **Do not add `qDNSmNetLib.sprx` to `boot_plugins.txt`.** It is not a boot plugin and must never be loaded at boot; it sits beside `qDNSm.sprx` and is loaded on demand, and it is needed only for updating the DNS server list and the supported games list.
 
@@ -107,6 +110,8 @@ The menu lists every server in your config. Selecting one applies it and, with
 - **Triangle** — delete the highlighted server
 - **Circle** — back
 - **Add new DNS server** — add your own name and its primary IP address
+- **OpenSpy patch** — replace GameSpy with OpenSpy in a supported running game
+- **Instructions** — step-by-step guides for the OpenSpy patch and manual Internet Connection toggling
 
 Under **qDNSm options**:
 
@@ -118,9 +123,13 @@ Under **qDNSm options**:
 | Show supported games | show the supported-games panel for the highlighted server; on by default |
 | Language | interface language: **Auto** (follow the console), English, Deutsch, Español, Français, Italiano, Português (Brasil), Português (Portugal), Русский, Polski, 日本語, or 简体中文 |
 | Update DNS list | download and apply the latest DNS server list; also refreshes the supported-games list when **Show supported games** is on |
-| How to use manually | the manual Internet Connection toggle steps, in-app |
 | About | version and credit |
 | Restore defaults | reset the server list to the shipped list |
+
+Under **Instructions**:
+
+- **OpenSpy patch** — the full step-by-step patch guide
+- **How to use manually** — the manual Internet Connection toggle steps
 
 ### Automatic DNS switching (default, recommended)
 
@@ -138,7 +147,7 @@ apply them — by default, qDNSm does that for you.
 
 ### Manual Internet Connection toggling (fallback)
 
-Use this when **Auto reconnect** is off. The same steps are in **qDNSm options →
+Use this when **Auto reconnect** is off. The same steps are in **Instructions →
 How to use manually**.
 
 1. Pick a DNS server from the list.
@@ -148,6 +157,25 @@ How to use manually**.
 5. Press X on **Internet Connection** again.
 6. Select **Enable**.
 7. You're now using the DNS server you picked.
+
+### OpenSpy patching
+
+**OpenSpy patch** rewrites the GameSpy service addresses and key in a supported
+game that is already running, so the game can use OpenSpy instead. The same steps
+are in **Instructions → OpenSpy patch**.
+
+1. Sign out of PSN first.
+2. Start a supported game and wait for its title screen or menu.
+3. Open the XMB, then open qDNSm.
+4. Wait for the XMB icons in the background to finish loading.
+5. The yellow HDD LED on the front of the console should stop blinking.
+6. When the icons are loaded and the HDD is idle, select **OpenSpy patch**.
+7. Wait for the confirmation notification.
+8. Exit the XMB and go online in the game and PSN.
+
+The option reports when no game is running, when the game is not supported, or
+when the patch fails. The **Show supported games** panel shows the titles known
+to the patch.
 
 ---
 
@@ -227,7 +255,7 @@ See [`installer_src/README.md`](installer_src/README.md) for details.
 
 ## LLM disclosure
 
-Most of this was written by hand, but there was assistance by an LLM — the documentation and
+Most of this was written by hand, but there was assistance by an LLM with the documentation and
 some of the scripts for generating packages, writing and running tests, tracking down and 
 fixing bugs, some auditing and finding mistakes I made during debugging and development.
 
@@ -246,6 +274,8 @@ Other components — `PSL1GHT`, `scetool` and `securetool` (restored separately,
 Building) and `vendor/sysutil` — come from the Sony PS3 SDK.
 
 qDNSm itself: © 2026 Tha_14.
+
+Morinkashi™ for the idea of incorporating the OpenSpy runtime patcher.
 
 Initial translations were produced with [DeepL](https://www.deepl.com/).
 

@@ -6,6 +6,7 @@
 #include <sys/timer.h> // sys_timer_sleep
 
 #define SC_PPU_THREAD_EXIT                      41
+#define SC_GET_FREE_MEM                         352
 #define SC_GET_TEMPERATURE                      383
 #define SC_STORAGE_INSERT_EJECT                 616
 #define SC_FS_LINK                              810
@@ -166,6 +167,12 @@ typedef struct
     uint32_t build_number;
     uint32_t unknown;
 } platform_info_t; // size: 0x18
+
+typedef struct
+{
+    uint32_t total;
+    uint32_t available;
+} VshMemoryInfo;
 
 typedef struct
 {
@@ -333,6 +340,7 @@ bool IsConsoleCobra();
 uint16_t GetPayloadVersion();
 bool DoesConsoleHaveCCAPI();
 bool DoesConsoleHaveWebman();
+void GetVshMemoryInfo(VshMemoryInfo* info);
 int sys_net_eurus_etherAddr(uint8_t* etherAddr);
 int sys_dbg_get_thread_list(sys_pid_t pid, sys_ppu_thread_t* ids, uint64_t* ids_num, uint64_t* all_ids_num);
 int _sys_prx_unload_module(sys_prx_id_t id, sys_prx_flags_t flags, const sys_prx_unload_module_option_t* pOpt);

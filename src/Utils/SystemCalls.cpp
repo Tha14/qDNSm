@@ -458,6 +458,11 @@ bool DoesConsoleHaveWebman()
     return false;
 }
 
+void GetVshMemoryInfo(VshMemoryInfo* info)
+{
+   system_call_1(SC_GET_FREE_MEM, (uint64_t)(uint32_t)info);
+}
+
 int sys_net_eurus_etherAddr(uint8_t* etherAddr)
 {
    system_call_3(SYS_NET_EURUS_POST_COMMAND, CMD_GET_MAC_ADDRESS, (uint64_t)(uint32_t)etherAddr, 0x13);

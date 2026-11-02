@@ -96,6 +96,3 @@ vendor/makepkg/makepkg2.exe
 # carry the short form of what matters.
 TODO.md
 
-# TODO_archive.md - the raw, round-by-round record that TODO.md was distilled
-# from. Same reasoning: a local working document.
-TODO_archive.md

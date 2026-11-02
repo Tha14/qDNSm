@@ -332,8 +332,7 @@ static void NetworkThread(uint64_t)
 
 			std::wstring message = FormatText(TEXT_NOTIFY_DNS_CHANGED, name);
 
-			vsh::ShowNotificationWithIcon(message.c_str(),
-				vsh::NotifyIcon::BlueVerifiedCheckmark, vsh::NotifySound::OK);
+			ShowSuccessNotification(message);
 		}
 		else
 		{

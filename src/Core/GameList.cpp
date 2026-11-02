@@ -108,11 +108,21 @@ static std::wstring Widen(const char* text, size_t length)
 	return out;
 }
 
-static bool HasSection(const std::vector<GameListSection>& sections, const std::string& ip)
+static bool IsOpenSpyKey(const char* text, size_t length)
+{
+	return RangeEquals(text, length, kOpenSpyGameListKey);
+}
+
+static bool IsValidSectionKey(const char* text, size_t length)
+{
+	return IsValidIpv4(text, length) || IsOpenSpyKey(text, length);
+}
+
+static bool HasSection(const std::vector<GameListSection>& sections, const std::string& key)
 {
 	for (size_t i = 0; i < sections.size(); i++)
 	{
-		if (sections[i].ip == ip)
+		if (sections[i].key == key)
 			return true;
 	}
 
@@ -173,16 +183,16 @@ bool ParseGameList(const char* data, size_t size, std::vector<GameListSection>& 
 
 			Trim(section, sectionLength);
 
-			if (!IsValidIpv4(section, sectionLength))
+			if (!IsValidSectionKey(section, sectionLength))
 				return false;
 
-			std::string ip(section, sectionLength);
+			std::string key(section, sectionLength);
 
-			if (HasSection(out, ip))
+			if (HasSection(out, key))
 				return false;
 
 			GameListSection entry{};
-			entry.ip = ip;
+			entry.key = key;
 			out.push_back(entry);
 			aliasSeen.push_back(false);
 			current = out.size() - 1;
@@ -290,17 +300,20 @@ bool ValidateGameList(const std::vector<GameListSection>& sections)
 	{
 		if (sections[i].games.empty())
 			return false;
+
+		if ((sections[i].key == kOpenSpyGameListKey) && !sections[i].aliases.empty())
+			return false;
 	}
 
 	return true;
 }
 
 const GameListSection* FindGameListSection(const std::vector<GameListSection>& sections,
-	const std::string& ip)
+	const std::string& key)
 {
 	for (size_t i = 0; i < sections.size(); i++)
 	{
-		if (sections[i].ip == ip)
+		if (sections[i].key == key)
 			return &sections[i];
 	}
 

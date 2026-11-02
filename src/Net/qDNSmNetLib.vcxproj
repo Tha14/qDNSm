@@ -55,14 +55,15 @@
     <ClCompile>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <AdditionalIncludeDirectories>$(RepoRootDir)vendor\mbedtls\include;$(MSBuildProjectDirectory);$(SN_PS3_PATH)\ppu\include\sn;$(SCE_PS3_ROOT)\target\ppu\include;$(SCE_PS3_ROOT)\target\common\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(RepoRootDir)vendor\mbedtls\include;$(RepoRootDir)vendor\VirtualShell\include;$(MSBuildProjectDirectory);$(SN_PS3_PATH)\ppu\include\sn;$(SCE_PS3_ROOT)\target\ppu\include;$(SCE_PS3_ROOT)\target\common\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>MBEDTLS_CONFIG_FILE=&quot;mbedtls_config.h&quot;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStd>Cpp11</CppLanguageStd>
     </ClCompile>
     <Link>
       <AdditionalDependencies>
-        <!-- ecrti.o provides __fini and is a bare .o outside any .a. Do NOT add crt1.o: it carries a .sys_proc_prx_param section that ps3ppuld cannot place under -oformat=prx, which breaks prx-fixup. _exit and __exit_user_prx_modules come from Core/CrtStubs.c instead. -->$(SCE_PS3_ROOT)\host-win32\ppu\lib\gcc\ppu-lv2\4.1.1\ecrti.o;$(SCE_PS3_ROOT)\target\ppu\lib\libc.a;$(SN_PS3_PATH)\ppu\lib\sn\libsn.a;$(SCE_PS3_ROOT)\target\ppu\lib\libm.a;$(SCE_PS3_ROOT)\target\ppu\lib\libio_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\liblv2_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libnet_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libc_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libsyscall.a;%(AdditionalDependencies)</AdditionalDependencies>
+        <!-- ecrti.o provides __fini and is a bare .o outside any .a. Do NOT add crt1.o: it carries a .sys_proc_prx_param section that ps3ppuld cannot place under -oformat=prx, which breaks prx-fixup. _exit and __exit_user_prx_modules come from Core/CrtStubs.c instead. -->$(SCE_PS3_ROOT)\host-win32\ppu\lib\gcc\ppu-lv2\4.1.1\ecrti.o;$(SCE_PS3_ROOT)\target\ppu\lib\libc.a;$(SN_PS3_PATH)\ppu\lib\sn\libsn.a;$(SCE_PS3_ROOT)\target\ppu\lib\libm.a;$(SCE_PS3_ROOT)\target\ppu\lib\libio_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\liblv2_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libnet_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libc_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libsyscall.a;-lstdc_export_stub;-lallocator_export_stub;-lsysPrxForUser_export_stub;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>--strip-unused-data %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalLibraryDirectories>$(RepoRootDir)vendor\VirtualShell\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <OutputFormat>PRXFile</OutputFormat>
     </Link>
     <PostBuildEvent>
@@ -75,7 +76,7 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
     <ClCompile>
       <OptimizationLevel>Level2</OptimizationLevel>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <AdditionalIncludeDirectories>$(RepoRootDir)vendor\mbedtls\include;$(MSBuildProjectDirectory);$(SN_PS3_PATH)\ppu\include\sn;$(SCE_PS3_ROOT)\target\ppu\include;$(SCE_PS3_ROOT)\target\common\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(RepoRootDir)vendor\mbedtls\include;$(RepoRootDir)vendor\VirtualShell\include;$(MSBuildProjectDirectory);$(SN_PS3_PATH)\ppu\include\sn;$(SCE_PS3_ROOT)\target\ppu\include;$(SCE_PS3_ROOT)\target\common\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>MBEDTLS_CONFIG_FILE=&quot;mbedtls_config.h&quot;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <CppLanguageStd>Cpp11</CppLanguageStd>
       <AdditionalOptions>-Os %(AdditionalOptions)</AdditionalOptions>
@@ -83,8 +84,9 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
     </ClCompile>
     <Link>
       <AdditionalDependencies>
-        <!-- Same link set as Debug. Keep crt1.o out; see the Debug comment. -->$(SCE_PS3_ROOT)\host-win32\ppu\lib\gcc\ppu-lv2\4.1.1\ecrti.o;$(SCE_PS3_ROOT)\target\ppu\lib\libc.a;$(SN_PS3_PATH)\ppu\lib\sn\libsn.a;$(SCE_PS3_ROOT)\target\ppu\lib\libm.a;$(SCE_PS3_ROOT)\target\ppu\lib\libio_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\liblv2_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libnet_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libc_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libsyscall.a;%(AdditionalDependencies)</AdditionalDependencies>
+        <!-- Same link set as Debug. Keep crt1.o out; see the Debug comment. -->$(SCE_PS3_ROOT)\host-win32\ppu\lib\gcc\ppu-lv2\4.1.1\ecrti.o;$(SCE_PS3_ROOT)\target\ppu\lib\libc.a;$(SN_PS3_PATH)\ppu\lib\sn\libsn.a;$(SCE_PS3_ROOT)\target\ppu\lib\libm.a;$(SCE_PS3_ROOT)\target\ppu\lib\libio_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\liblv2_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libnet_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libc_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libsyscall.a;-lstdc_export_stub;-lallocator_export_stub;-lsysPrxForUser_export_stub;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>--strip-unused-data %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalLibraryDirectories>$(RepoRootDir)vendor\VirtualShell\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <MapFileName>$(IntDir)$(TargetName).map</MapFileName>
       <InfoStripping>StripSymsAndDebug</InfoStripping>
       <DataStripping>StripFuncsAndData</DataStripping>
@@ -98,14 +100,20 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\Core\CrtStubs.c" />
+    <ClCompile Include="DnsList.cpp" />
+    <ClCompile Include="NetAlloc.cpp" />
+    <ClCompile Include="NetGameList.cpp" />
     <ClCompile Include="qDNSmNetLib.cpp" />
     <ClCompile Include="TlsFetch.cpp" />
+    <ClCompile Include="UpdateJob.cpp" />
     <ClCompile Include="$(RepoRootDir)vendor\mbedtls\library\*.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="DnsList.hpp" />
     <ClInclude Include="mbedtls_config.h" />
     <ClInclude Include="NetProbeProtocol.hpp" />
     <ClInclude Include="TlsFetch.hpp" />
+    <ClInclude Include="UpdateJob.hpp" />
     <ClInclude Include="UpdateUrls.hpp" />
     <None Include="README.md" />
   </ItemGroup>

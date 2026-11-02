@@ -1,7 +1,12 @@
 #include "../GameList.hpp"
-#include "../DnsList.hpp"
+#include "../../Net/DnsList.hpp"
 #include "../Language.hpp"
 #include "../LanguageCodec.hpp"
+#include "../MemoryWarningPolicy.hpp"
+#include "../OpenSpyPatchPlan.hpp"
+#include "../OpenSpySupportedTitles.hpp"
+#include "../Version.hpp"
+#include "../../Memory/AobScan.hpp"
 
 #include <cstdio>
 
@@ -45,6 +50,21 @@ static void TestGameList()
 	Check(sections[0].games.size() == 3, "duplicate games preserved");
 	Check(sections[0].aliases.size() == 2, "aliases parsed");
 	Check(sections[1].games.size() == 1, "second section parsed");
+
+	const char* openSpy =
+		"[OpenSpy]\n"
+		"Game=50 Cent: Blood on the Sand\n";
+	Check(ParseGameList(openSpy, std::char_traits<char>::length(openSpy), sections), "OpenSpy section parses");
+	Check((sections.size() == 1) && (sections[0].key == kOpenSpyGameListKey), "OpenSpy section key parsed");
+	Check(FindGameListSection(sections, kOpenSpyGameListKey) != nullptr, "OpenSpy section found");
+	Check(ValidateGameList(sections), "OpenSpy section validates");
+
+	const char* openSpyAliases =
+		"[OpenSpy]\n"
+		"Aliases=Other\n"
+		"Game=50 Cent: Blood on the Sand\n";
+	Check(ParseGameList(openSpyAliases, std::char_traits<char>::length(openSpyAliases), sections), "OpenSpy aliases tolerated by runtime parser");
+	Check(!ValidateGameList(sections), "OpenSpy aliases rejected by validator");
 
 	const char* bom =
 		"\xEF\xBB\xBF[1.1.1.1]\r\n"
@@ -153,6 +173,117 @@ static void TestDnsList()
 	Check(!ParseDnsList(unknown, std::char_traits<char>::length(unknown), entries), "unknown DNS key rejected");
 }
 
+static void TestVersion()
+{
+	Check(IsValidVersion("1"), "single version component is valid");
+	Check(IsValidVersion("1.41"), "dotted version is valid");
+	Check(!IsValidVersion(""), "empty version is rejected");
+	Check(!IsValidVersion("1."), "trailing dot is rejected");
+	Check(!IsValidVersion(".1"), "leading dot is rejected");
+	Check(!IsValidVersion("1..2"), "consecutive dots are rejected");
+	Check(!IsValidVersion("1.a"), "non-numeric version is rejected");
+	Check(!IsValidVersion("1.1234567890"), "oversized component is rejected");
+
+	Check(IsVersionNewer("1.41", "1.4"), "1.41 is newer than 1.4");
+	Check(IsVersionNewer("1.10", "1.9"), "1.10 is newer than 1.9");
+	Check(IsVersionNewer("2", "1.99"), "major version wins");
+	Check(!IsVersionNewer("1.4", "1.4"), "equal version is not newer");
+	Check(!IsVersionNewer("1.4", "1.41"), "older version is not newer");
+	Check(!IsVersionNewer("bad", "1.4"), "invalid candidate is not newer");
+}
+
+static void TestMemoryWarningPolicy()
+{
+	Check(ClassifyMemoryWarning(kMemoryWarningBytes + 1) == MemoryWarningLevel::None,
+		"memory above the warning threshold is normal");
+	Check(ClassifyMemoryWarning(kMemoryWarningBytes) == MemoryWarningLevel::Warning,
+		"memory at the warning threshold is a warning");
+	Check(ClassifyMemoryWarning(kMemoryCriticalBytes) == MemoryWarningLevel::Warning,
+		"memory at the critical threshold is not critical");
+	Check(ClassifyMemoryWarning(kMemoryCriticalBytes - 1) == MemoryWarningLevel::Critical,
+		"memory below the critical threshold is critical");
+}
+
+static void TestDnsVersionComment()
+{
+	std::vector<RemoteDnsEntry> entries;
+	std::string version;
+
+	const char* valid =
+		"# OnlineVersion=1.41\n"
+		"[DNS]\n"
+		"Name=A\n"
+		"Primary=1.1.1.1\n"
+		"Managed=1\n";
+	Check(ParseDnsList(valid, std::char_traits<char>::length(valid), entries, nullptr, &version),
+		"DNS list with version comment parses");
+	Check(version == "1.41", "version comment is extracted");
+
+	const char* spaced =
+		"; OnlineVersion = 2.0\r\n"
+		"[DNS]\r\n"
+		"Name=A\r\n"
+		"Primary=1.1.1.1\r\n"
+		"Managed=1\r\n";
+	Check(ParseDnsList(spaced, std::char_traits<char>::length(spaced), entries, nullptr, &version),
+		"spaced CRLF version comment parses");
+	Check(version == "2.0", "spaced version comment is extracted");
+
+	const char* invalid =
+		"# OnlineVersion=1..2\n"
+		"[DNS]\n"
+		"Name=A\n"
+		"Primary=1.1.1.1\n"
+		"Managed=1\n";
+	Check(ParseDnsList(invalid, std::char_traits<char>::length(invalid), entries, nullptr, &version),
+		"invalid version does not reject DNS list");
+	Check(version.empty(), "invalid version is ignored");
+
+	const char* duplicate =
+		"# OnlineVersion=1.0\n"
+		"# OnlineVersion=2.0\n"
+		"[DNS]\n"
+		"Name=A\n"
+		"Primary=1.1.1.1\n"
+		"Managed=1\n";
+	Check(ParseDnsList(duplicate, std::char_traits<char>::length(duplicate), entries, nullptr, &version),
+		"duplicate version comments parse");
+	Check(version == "2.0", "last valid version wins");
+
+	version = "stale";
+	const char* missing =
+		"[DNS]\n"
+		"Name=A\n"
+		"Primary=1.1.1.1\n"
+		"Managed=1\n";
+	Check(ParseDnsList(missing, std::char_traits<char>::length(missing), entries, nullptr, &version),
+		"DNS list without version parses");
+	Check(version.empty(), "missing version clears output");
+
+	std::string url;
+	const char* withUrl =
+		"# OnlineVersion=1.41\n"
+		"# OnlineUrl=https://example.test/qDNSm\n"
+		"[DNS]\n"
+		"Name=A\n"
+		"Primary=1.1.1.1\n"
+		"Managed=1\n";
+	Check(ParseDnsList(withUrl, std::char_traits<char>::length(withUrl), entries, nullptr,
+		&version, &url), "DNS list with URL comment parses");
+	Check(url == "https://example.test/qDNSm", "URL comment is extracted");
+
+	const char* emptyUrl =
+		"# OnlineUrl=\n"
+		"[DNS]\n"
+		"Name=A\n"
+		"Primary=1.1.1.1\n"
+		"Managed=1\n";
+	url = "stale";
+	Check(ParseDnsList(emptyUrl, std::char_traits<char>::length(emptyUrl), entries, nullptr,
+		nullptr, &url), "empty URL comment does not reject DNS list");
+	Check(url.empty(), "empty URL is ignored");
+}
+
 static DnsServerEntry Entry(const char* name, const char* primary, bool managed)
 {
 	DnsServerEntry entry{};
@@ -219,6 +350,28 @@ static void TestMerge()
 	Check(MergeManagedDnsList(matchingRemote, unmanagedOnly, merged, nullptr), "merge matching unmanaged");
 	Check(EntriesAre(merged, "User", "5.5.5.5", false), "matching unmanaged not duplicated");
 
+	std::vector<DnsServerEntry> stale;
+	stale.push_back(Entry("Uncharted Reloaded", "51.75.22.125", false));
+	stale.push_back(Entry("Uncharted Reloaded", "51.255.40.74", true));
+
+	std::vector<RemoteDnsEntry> currentUncharted;
+	RemoteDnsEntry uncharted{};
+	uncharted.name = W("Uncharted Reloaded");
+	uncharted.primary = "51.255.40.74";
+	currentUncharted.push_back(uncharted);
+
+	Check(MergeManagedDnsList(currentUncharted, stale, merged, nullptr), "merge stale duplicate");
+	Check(EntriesAre(merged, "Uncharted Reloaded", "51.255.40.74", true), "stale unmanaged duplicate removed");
+
+	std::vector<DnsServerEntry> staleManaged;
+	staleManaged.push_back(Entry("Managed A", "1.1.1.1", true));
+	staleManaged.push_back(Entry("Managed B", "3.3.3.3", true));
+
+	std::vector<RemoteDnsEntry> onlyA;
+	onlyA.push_back(a);
+	Check(MergeManagedDnsList(onlyA, staleManaged, merged, nullptr), "merge stale managed");
+	Check(EntriesAre(merged, "Managed A", "1.1.1.1", true), "stale managed entry removed");
+
 	std::vector<DnsServerEntry> full;
 	for (int i = 0; i < 256; i++)
 	{
@@ -266,6 +419,11 @@ static void TestLanguage()
 	Check(Language_Init("en"), "English initializes");
 	Check(std::wstring(T(TEXT_INPUT_YES)) == std::wstring(L"Yes"), "English Yes");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"No"), "English No");
+	const std::wstring updateNotice = FormatText(TEXT_UPDATE_AVAILABLE, L"9.9",
+		L"https://example.test/qDNSm");
+	Check(updateNotice.find(L"v9.9") != std::wstring::npos, "update version is formatted");
+	Check(updateNotice.find(L"https://example.test/qDNSm") != std::wstring::npos,
+		"update URL is formatted");
 
 	Check(Language_Init("de"), "German initializes");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"Nein"), "German No");
@@ -326,12 +484,234 @@ static void TestLanguage()
 	}
 }
 
+static void TestAobScan()
+{
+	const uint8_t data[] = { 'x', 'a', 'b', 'c', 'a', 'b', 'c', 'x' };
+	const uint8_t bytes[] = { 'a', 'b', 'c' };
+	const AobPattern pattern = { bytes, nullptr, sizeof(bytes) };
+	AobMatch matches[4];
+
+	Check(FindAllMatches(data, sizeof(data), 0x1000, pattern, matches, 4) == 2,
+		"scanner finds two matches");
+	Check((matches[0].address == 0x1001) && (matches[1].address == 0x1004),
+		"scanner reports match addresses");
+
+	Check(FindAllMatches(data, sizeof(data), 0x1000, pattern, matches, 4, 4) == 1,
+		"scanner start limit suppresses overlap duplicate");
+	Check(matches[0].address == 0x1001, "scanner start limit keeps first match");
+
+	Check(FindAllMatches(data, sizeof(data), 0x1000, pattern, matches, 4, 5) == 2,
+		"scanner start limit includes matches before the boundary");
+
+	AobScanSegment segments[2];
+
+	Check(BuildScanSegments(0x1000, 0x2000, 0x1800, 255, segments) == 2,
+		"scanner splits range into two segments");
+	Check((segments[0].start == 0x1000) &&
+		(segments[0].reportEnd == 0x1800) &&
+		(segments[0].readEnd == 0x18FF),
+		"first scan segment keeps overlap");
+	Check((segments[1].start == 0x1800) &&
+		(segments[1].reportEnd == 0x2000) &&
+		(segments[1].readEnd == 0x2000),
+		"second scan segment owns the tail");
+
+	Check(BuildScanSegments(0x1000, 0x2000, 0x1000, 255, segments) == 1,
+		"split at range start stays one segment");
+	Check(BuildScanSegments(0x1000, 0x2000, 0x2000, 255, segments) == 1,
+		"split at range end stays one segment");
+	Check(BuildScanSegments(0x1000, 0x2000, 0x3000, 255, segments) == 1,
+		"split beyond range end stays one segment");
+	Check(BuildScanSegments(0x1000, 0x2000, 0x1F00, 0x200, segments) == 2,
+		"scanner clamps overlap to range end");
+	Check(segments[0].readEnd == 0x2000, "scanner overlap clamps at range end");
+	Check(BuildScanSegments(0x1000, 0x1000, 0x1000, 255, segments) == 0,
+		"empty range produces no segments");
+
+	uint8_t boundaryData[0x40];
+	for (size_t i = 0; i < sizeof(boundaryData); i++)
+		boundaryData[i] = 'x';
+
+	const uint8_t boundaryNeedle[] = { 'a', 'b', 'c', 'd' };
+	const uint32_t boundaryOffset = 0x1D;
+	for (size_t i = 0; i < sizeof(boundaryNeedle); i++)
+		boundaryData[boundaryOffset + i] = boundaryNeedle[i];
+
+	const AobPattern boundaryPattern = {
+		boundaryNeedle, nullptr, sizeof(boundaryNeedle)
+	};
+	AobMatch firstSegmentMatches[4];
+	AobMatch secondSegmentMatches[4];
+	AobMatch fullMatches[4];
+
+	Check(BuildScanSegments(0x1000, 0x1040, 0x1020, 4, segments) == 2,
+		"boundary range splits into two segments");
+
+	const size_t firstCount = FindAllMatches(boundaryData,
+		segments[0].readEnd - segments[0].start, segments[0].start,
+		boundaryPattern, firstSegmentMatches, 4,
+		segments[0].reportEnd - segments[0].start);
+	const size_t secondCount = FindAllMatches(
+		boundaryData + (segments[1].start - 0x1000),
+		segments[1].readEnd - segments[1].start, segments[1].start,
+		boundaryPattern, secondSegmentMatches, 4,
+		segments[1].reportEnd - segments[1].start);
+
+	Check((firstCount == 1) && (secondCount == 0),
+		"scanner reports boundary match only in first segment");
+	Check(firstSegmentMatches[0].address == 0x101D,
+		"scanner keeps boundary match address");
+
+	Check(FindAllMatches(boundaryData, sizeof(boundaryData), 0x1000,
+		boundaryPattern, fullMatches, 4) == 1,
+		"scanner finds boundary match in one pass");
+	Check(fullMatches[0].address == 0x101D,
+		"scanner boundary match matches full scan");
+}
+
+static void TestOpenSpySupportedTitles()
+{
+	char normalized[10];
+
+	Check(NormalizeTitleId("bles01893", normalized), "lowercase title ID normalizes");
+	Check(std::char_traits<char>::compare(normalized, "BLES01893", 9) == 0,
+		"normalized title ID is uppercase");
+
+	const char* const list[] = { "BLES01893", "BCUS98174" };
+
+	Check(TitleIdInList("bles01893", list, 2), "title ID list match");
+	Check(!TitleIdInList("BLES01894", list, 2), "title ID list miss");
+	Check(!NormalizeTitleId("B1ES01893", normalized), "digit in title prefix rejected");
+	Check(!NormalizeTitleId("BLES0189A", normalized), "letter in title suffix rejected");
+	Check(!NormalizeTitleId("BLES0189", normalized), "short title ID rejected");
+	Check(!NormalizeTitleId("BLES018930", normalized), "long title ID rejected");
+	Check(IsSupportedTitleId("BLES00472"), "generated title list accepts known ID");
+	Check(IsSupportedTitleId("BLES00219"), "generated title list accepts Condemned 2 EU");
+	Check(IsSupportedTitleId("BLUS30115"), "generated title list accepts Condemned 2 NA");
+	Check(IsSupportedTitleId("BLES00526"), "generated title list accepts Damnation EU");
+	Check(IsSupportedTitleId("BLUS30304"), "generated title list accepts Damnation NA");
+	Check(IsSupportedTitleId("BLES00464"), "generated title list accepts F.E.A.R. 2 EU");
+	Check(IsSupportedTitleId("BLUS30251"), "generated title list accepts F.E.A.R. 2 NA");
+	Check(IsSupportedTitleId("BLJM60160"), "generated title list accepts F.E.A.R. 2 JP");
+	Check(IsSupportedTitleId("NPUB30252"), "generated title list accepts Gotham City Impostors NA");
+	Check(IsSupportedTitleId("NPEB00239"), "generated title list accepts Gotham City Impostors EU");
+	Check(IsGothamCityImpostorsTitleId("NPUB30252"), "Gotham special case accepts NA");
+	Check(IsGothamCityImpostorsTitleId("NPEB00239"), "Gotham special case accepts EU");
+	Check(!IsGothamCityImpostorsTitleId("BLUS30115"), "Gotham special case rejects other titles");
+	Check(IsSupportedTitleId("BLUS30154"), "generated title list accepts Beijing 2008 NA");
+	Check(IsSupportedTitleId("BLES00286"), "generated title list accepts Beijing 2008 EU");
+	Check(IsSupportedTitleId("NPUB30161"), "generated title list accepts Section 8 NA");
+	Check(IsSupportedTitleId("NPEB00386"), "generated title list accepts Section 8: Prejudice EU");
+	Check(IsSupportedTitleId("NPUB30381"), "generated title list accepts Section 8: Prejudice NA");
+	Check(!IsSupportedTitleId("NPUB30033"), "generated title list rejects Age of Booty");
+	Check(!IsSupportedTitleId("BLUS30130"), "generated title list rejects Civilization Revolution NA");
+	Check(!IsSupportedTitleId("BLES00238"), "generated title list rejects Civilization Revolution EU");
+	Check(IsSupportedTitleId("BLUS30165"), "generated title list accepts Brothers in Arms NA");
+	Check(IsSupportedTitleId("BLES00319"), "generated title list accepts Brothers in Arms EU");
+	Check(IsSupportedTitleId("NPUB30565"), "generated title list accepts Brothers in Arms NA PSN");
+	Check(IsSupportedTitleId("BLUS30406"), "generated title list accepts Hunted NA");
+	Check(IsSupportedTitleId("BLES01310"), "generated title list accepts Hunted EU");
+	Check(IsSupportedTitleId("BLUS30090"), "generated title list accepts TimeShift NA");
+	Check(IsSupportedTitleId("BLES00159"), "generated title list accepts TimeShift EU");
+	Check(!IsSupportedTitleId("BLES00182"), "generated title list rejects Conflict EU");
+	Check(!IsSupportedTitleId("BLUS30107"), "generated title list rejects Conflict NA");
+	Check(!IsSupportedTitleId("BLES01893"), "generated title list rejects unknown ID");
+}
+
+static void TestPatchPlan()
+{
+	const uint8_t oldBytes[] = { 'A', 'A', 'A', 'A' };
+	const uint8_t newBytes[] = { 'B', 'B', 'B', 'B' };
+	const uint8_t oldAuth[] = { 'h', 't', 't', 'p', 's', ':', '/', '/', '%', 's', '.', 'a', 'u', 't', 'h', '.', 'p', 'u', 'b', 's', 'v', 's' };
+	const uint8_t newAuth[] = { 'h', 't', 't', 'p', ':', '/', '/', '%', 's', '.', 'a', 'u', 't', 'h', '.', 'p', 'u', 'b', 's', 'v', 's', '\0' };
+
+	GameSpyReplacement replacements[2] = {};
+	replacements[0].oldBytes = oldBytes;
+	replacements[0].newBytes = newBytes;
+	replacements[0].oldLength = sizeof(oldBytes);
+	replacements[0].newLength = sizeof(newBytes);
+	replacements[0].required = true;
+
+	replacements[1].oldBytes = oldAuth;
+	replacements[1].newBytes = newAuth;
+	replacements[1].oldLength = sizeof(oldAuth);
+	replacements[1].newLength = sizeof(newAuth);
+	replacements[1].required = false;
+
+	const uint32_t firstOld[] = { 0x1000, 0x2000 };
+	const uint32_t secondOld[] = { 0x1100, 0x2100 };
+	const uint32_t firstNew[] = { 0x1000, 0x2000 };
+	const uint32_t secondNew[] = { 0x1100, 0x2100 };
+
+	GameSpyReplacementMatches matches[2] = {};
+	matches[0].oldAddresses = firstOld;
+	matches[0].oldCount = 2;
+	matches[1].oldAddresses = secondOld;
+	matches[1].oldCount = 2;
+
+	std::vector<GameSpyPatchEntry> entries;
+	bool alreadyPatched = false;
+
+	Check(BuildGameSpyPatchPlan(replacements, 2, matches, entries, alreadyPatched) == GameSpyPatchPlan_Ok,
+		"patch plan accepts complete match set");
+	Check(entries.size() == 4, "patch plan emits every match");
+	Check(!alreadyPatched, "patch plan is not already patched");
+
+	matches[0].oldCount = 0;
+	matches[1].oldCount = 0;
+	matches[0].newAddresses = firstNew;
+	matches[0].newCount = 2;
+	matches[1].newAddresses = secondNew;
+	matches[1].newCount = 2;
+
+	Check(BuildGameSpyPatchPlan(replacements, 2, matches, entries, alreadyPatched) == GameSpyPatchPlan_AlreadyPatched,
+		"patch plan detects already patched game");
+	Check(alreadyPatched && entries.empty(), "already patched plan has no writes");
+
+	matches[0].oldAddresses = firstOld;
+	matches[0].oldCount = 2;
+	matches[0].newCount = 0;
+	matches[1].newCount = 0;
+	matches[1].newAddresses = nullptr;
+	Check(BuildGameSpyPatchPlan(replacements, 2, matches, entries, alreadyPatched) == GameSpyPatchPlan_Ok,
+		"optional auth absence does not block required replacement");
+
+	matches[0].newAddresses = firstNew;
+	matches[0].newCount = 1;
+	Check(BuildGameSpyPatchPlan(replacements, 2, matches, entries, alreadyPatched) == GameSpyPatchPlan_Mixed,
+		"mixed old and new state rejected");
+
+	matches[0].newCount = 0;
+	matches[0].newAddresses = nullptr;
+	matches[1].oldAddresses = secondOld;
+	matches[1].oldCount = 2;
+	const uint32_t overlapFirst[] = { 0x1000 };
+	const uint32_t overlapSecond[] = { 0x1002 };
+	matches[0].oldAddresses = overlapFirst;
+	matches[0].oldCount = 1;
+	matches[1].oldAddresses = overlapSecond;
+	matches[1].oldCount = 1;
+	Check(BuildGameSpyPatchPlan(replacements, 2, matches, entries, alreadyPatched) == GameSpyPatchPlan_Overlap,
+		"overlapping patch entries rejected");
+
+	matches[0].oldCount = 0;
+	matches[1].oldCount = 0;
+	Check(BuildGameSpyPatchPlan(replacements, 2, matches, entries, alreadyPatched) == GameSpyPatchPlan_MissingRequired,
+		"required pattern missing is rejected");
+}
+
 int main()
 {
 	TestGameList();
 	TestDnsList();
+	TestVersion();
+	TestMemoryWarningPolicy();
+	TestDnsVersionComment();
 	TestMerge();
 	TestLanguage();
+	TestAobScan();
+	TestOpenSpySupportedTitles();
+	TestPatchPlan();
 
 	if (g_Failures != 0)
 	{

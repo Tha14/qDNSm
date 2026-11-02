@@ -612,10 +612,12 @@ void paf_0C16A258(PhPlane const* plane); // paf::PhPlane::~PhPlane()
 // paf_BD01AEF9 // _ZN3paf6PhText14ReleaseSurfaceEv								// paf::PhText::ReleaseSurface(void)
 // paf_A0118D9E // _ZN3paf6PhText14RemoveAllAttrsEv								// paf::PhText::RemoveAllAttrs(void)
 // paf_91CD1263 // _ZN3paf6PhText15SetColumnOffsetEf							// paf::PhText::SetColumnOffset(float)
+void paf_91CD1263(PhText const* text, float offset); // paf::PhText::SetColumnOffset(float)
 // paf_2DBA5B93 // _ZN3paf6PhText21SetPrivateSurfacePoolEPNS_11SurfacePoolE		// paf::PhText::SetPrivateSurfacePool(paf::SurfacePool *)
 // paf_402E693B // _ZN3paf6PhText6LineUpEj										// paf::PhText::LineUp(unsigned int)
 // paf_74093C9A // _ZN3paf6PhText7AddAttrENS_14PhTextAttrTypeEjj				// paf::PhText::AddAttr(paf::PhTextAttrType, unsigned int, unsigned int)
 // paf_022FDDB8 // _ZN3paf6PhText7SetSizeEfff									// paf::PhText::SetSize(float, float, float)
+void paf_022FDDB8(PhText const* text, float width, float height, float depth); // paf::PhText::SetSize(float, float, float)
 // paf_E75F9969 // _ZN3paf6PhText8LineDownEj									// paf::PhText::LineDown(unsigned int)
 // paf_6B620D94 // _ZN3paf6PhText9EraseTextEjj									// paf::PhText::EraseText(unsigned int, unsigned int)
 // paf_201528C1 // _ZN3paf6PhText9ShowCaretEb									// paf::PhText::ShowCaret(bool)
@@ -623,6 +625,7 @@ void paf_7F0930C6(PhText const* text, PhWidget* parent, void* phAppear); // paf:
 // paf_304EAE6F // _ZNK3paf6PhText12GetFirstLineEv								// paf::PhText::GetFirstLine(void)const
 // paf_E8355FCC // _ZNK3paf6PhText12GetLineCountEv								// paf::PhText::GetLineCount(void)const
 // paf_65036474 // _ZNK3paf6PhText12GetTextWidthEv								// paf::PhText::GetTextWidth(void)const
+float paf_65036474(PhText const* text); // paf::PhText::GetTextWidth(void) const
 // paf_77479F6F // _ZNK3paf6PhText13GetCurrentPosEv								// paf::PhText::GetCurrentPos(void)const
 // paf_20477524 // _ZNK3paf6PhText13GetLineHeightEv								// paf::PhText::GetLineHeight(void)const
 // paf_3F10A8D7 // _ZNK3paf6PhText13GetTextLengthEv								// paf::PhText::GetTextLength(void)const
@@ -1643,7 +1646,8 @@ class SurfaceRCPtr
 public:
     _Ty* ptr;
 
-    SurfaceRCPtr() = default;
+    SurfaceRCPtr()
+        : ptr(nullptr) {};
     SurfaceRCPtr(_Ty* p)
         : ptr(p) {};
     ~SurfaceRCPtr() {};
@@ -2265,6 +2269,23 @@ public:
         float height = 0.0;
         textHandle->GetStyle(PhSText::LineHeight, height);
         return height;
+    }
+
+    float GetTextWidth() const
+    {
+        return paf_65036474(this);
+    }
+
+    PhText& SetColumnOffset(float offset)
+    {
+        paf_91CD1263(this, offset);
+        return *this;
+    }
+
+    PhText& SetSize(float width, float height, float depth)
+    {
+        paf_022FDDB8(this, width, height, depth);
+        return *this;
     }
 
 

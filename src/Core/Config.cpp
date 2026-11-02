@@ -1,4 +1,6 @@
 ﻿#include "Config.hpp"
+#include "NetUpdate.hpp"
+#include "Version.hpp"
 #include "Utils/FileSystem.hpp"
 #include "Utils/Std.hpp"
 #include "LanguageCodec.hpp"
@@ -18,6 +20,8 @@ static const char* KEY_AUTO_RECONNECT = "AutoReconnect";
 static const char* KEY_SHOW_SUPPORTED_GAMES = "ShowSupportedGames";
 static const char* KEY_LANGUAGE = "Language";
 static const char* KEY_MANAGED_FORMAT = "ManagedFormat";
+static const char* KEY_ONLINE_VERSION = "OnlineVersion";
+static const char* KEY_ONLINE_URL = "OnlineUrl";
 static const char* KEY_NAME = "Name";
 static const char* KEY_PRIMARY = "Primary";
 static const char* KEY_MANAGED = "Managed";
@@ -30,6 +34,7 @@ static const bool DEFAULT_SHOW_NOTIFICATION = true;
 static const bool DEFAULT_AUTO_RECONNECT = true;
 static const bool DEFAULT_SHOW_SUPPORTED_GAMES = true;
 static const char* DEFAULT_LANGUAGE = "auto";
+static const char* DEFAULT_ONLINE_URL = QDNSM_UPDATE_URL;
 
 struct DefaultDnsServer
 {
@@ -37,44 +42,7 @@ struct DefaultDnsServer
 	const char* primary;
 };
 
-static const DefaultDnsServer DEFAULT_DNS_SERVERS[] =
-{
-	{ "PS Rewired", "67.222.156.250" },
-	{ "PSORG", "51.79.41.185" },
-	{ "PS3 Reborn", "146.190.205.197" },
-	{ "BF Reborn", "151.241.100.80" },
-	{ "PS Restored", "165.227.128.12" },
-	{ "PSONE", "185.194.142.4" },
-	{ "Warehouse Wiki", "209.38.53.69" },
-	{ "Uncharted Reloaded", "51.255.40.74" },
-	{ "Warhawk Revived", "198.100.158.95" },
-	{ "SaveConfrontation", "146.190.205.197" },
-	{ "All-Stars Awakened", "129.153.39.127"},
-	{ "PSHOME Revival", "52.86.120.101" },
-	{ "Home Headquarters", "64.20.35.146" },
-	{ "Armored Core 4 Update Data", "160.251.171.125" },
-	{ "Classics", "136.55.43.79" },
-	{ "The Archstones", "142.93.245.186" },
-	{ "Antigravity Racing Foundation", "147.135.213.57" },
-	{ "Project Neptune", "128.140.0.23" },
-	{ "MNR Revival", "45.32.179.33" },
-	{ "Thirteen", "95.214.55.111" },
-	{ "PES 2018 Online", "162.35.166.153" },
-	{ "TDU World", "194.164.90.135" },
-	{ "Gran Turismo Online Revival", "31.61.117.252" },
-	{ "TLOU Factions", "51.255.40.74" },
-	{ "UT3MOD/333Networks", "15.204.233.35" },
-	{ "Twisted Metal Federation", "139.144.213.59" },
-	{ "All-Stars Awakened", "139.144.213.59" },
-	{ "Infamous Reborn", "152.53.194.56" },
-	{ "Darksiders II Mail Server", "193.232.178.202" },
-	{ "Project Nexus", "192.236.168.216" },
-	{ "PSRevived", "167.233.79.183" },
-	{ "Monster Hunter Frontier Renewal", "152.53.209.191" },
-	{ "Full Auto - The Ascendants", "51.210.15.204" },
-	{ "Cloudflare DNS", "1.1.1.1" },
-	{ "Google DNS", "8.8.8.8" },
-};
+#include "DefaultDnsServers.generated.hpp"
 
 static const size_t DEFAULT_DNS_SERVER_COUNT = sizeof(DEFAULT_DNS_SERVERS) / sizeof(DEFAULT_DNS_SERVERS[0]);
 
@@ -262,6 +230,8 @@ static ConfigParseFlags ParseConfig(Config& config, char* data, size_t size)
 	config.m_Settings.showSupportedGames = DEFAULT_SHOW_SUPPORTED_GAMES;
 	config.m_Settings.language = DEFAULT_LANGUAGE;
 	config.m_Settings.managedFormat = false;
+	config.m_Settings.onlineVersion.clear();
+	config.m_Settings.onlineUrl = DEFAULT_ONLINE_URL;
 
 	ConfigParseFlags flags{};
 
@@ -380,6 +350,10 @@ static ConfigParseFlags ParseConfig(Config& config, char* data, size_t size)
 				if (config.m_Settings.managedFormat)
 					flags.managedFormatPresent = true;
 			}
+			else if (RangeEquals(key, keyLength, KEY_ONLINE_VERSION))
+				RangeToString(config.m_Settings.onlineVersion, value, valueLength);
+			else if ((valueLength > 0) && RangeEquals(key, keyLength, KEY_ONLINE_URL))
+				RangeToString(config.m_Settings.onlineUrl, value, valueLength);
 		}
 		else if (currentSection == SectionDnsServer)
 		{
@@ -425,6 +399,8 @@ void Config::ResetToDefaults()
 	m_Settings.showSupportedGames = DEFAULT_SHOW_SUPPORTED_GAMES;
 	m_Settings.language = DEFAULT_LANGUAGE;
 	m_Settings.managedFormat = true;
+	m_Settings.onlineVersion.clear();
+	m_Settings.onlineUrl = DEFAULT_ONLINE_URL;
 }
 
 bool Config::Load()
@@ -474,6 +450,9 @@ bool Config::Load()
 
 bool Config::Save()
 {
+	if (IsNetUpdateBusy())
+		return false;
+
 	if (m_FilePath.empty())
 		m_FilePath = GetCurrentDir() + CONFIG_FILE_NAME;
 
@@ -505,6 +484,14 @@ bool Config::Save()
 	content += KEY_MANAGED_FORMAT;
 	content += "=";
 	content += (m_Settings.managedFormat ? "1" : "0");
+	content += "\n";
+	content += KEY_ONLINE_VERSION;
+	content += "=";
+	content += m_Settings.onlineVersion;
+	content += "\n";
+	content += KEY_ONLINE_URL;
+	content += "=";
+	content += m_Settings.onlineUrl;
 	content += "\n\n";
 
 	for (size_t i = 0; i < m_DnsServers.size(); i++)

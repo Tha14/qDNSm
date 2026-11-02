@@ -80,6 +80,21 @@ TimerData* Timer::FindTimer(float* pFrom)
     return nullptr;
 }
 
+void Timer::Remove(float* pFrom)
+{
+    if (!pFrom)
+        return;
+
+    for (size_t i = 0; i < m_TimerStack.size(); i++)
+    {
+        if (m_TimerStack[i].m_From == pFrom)
+        {
+            m_TimerStack.erase(m_TimerStack.begin() + i);
+            return;
+        }
+    }
+}
+
 void Timer::Add(float* from, float to, uint64_t duration, uint64_t startDelay, float(*interpolation)(float), void(*callback)(float*))
 {
     if (!from || (*from == to))

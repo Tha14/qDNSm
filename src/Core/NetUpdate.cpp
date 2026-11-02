@@ -4,13 +4,11 @@
 #include "../Net/UpdateUrls.hpp"
 #include "../Utils/FileSystem.hpp"
 #include "Config.hpp"
-#include "DnsList.hpp"
-#include "GameList.hpp"
 #include "GameListPanel.hpp"
+#include "Helpers.hpp"
 #include "InputUi.hpp"
 #include "Language.hpp"
 
-#include <cell/cell_fs.h>
 #include <sys/ppu_thread.h>
 #include <vsh/stdc.hpp>
 #include <vsh/sys_prx_for_user.hpp>
@@ -25,51 +23,26 @@ static volatile bool s_ResultReady = false;
 static bool s_GamesRequested = false;
 static sys_ppu_thread_t s_ThreadId = SYS_PPU_THREAD_ID_INVALID;
 
-struct FetchPair
-{
-	bool dnsOk;
-	bool gamesOk;
-};
-
 struct UpdateResult
 {
 	bool dnsOk;
 	bool gamesRequested;
 	bool gamesOk;
 	bool gamesInvalid;
-	std::vector<RemoteDnsEntry> dnsEntries;
-	std::string dnsTempPath;
-	std::string gamesTempPath;
 };
 
 static UpdateResult s_Result;
 
-static void RemoveFile(const std::string& path)
-{
-	cellFsUnlink(path.c_str());
-}
-
-static bool FetchSucceeded(int httpStatus, int error, uint32_t bytes,
-	const std::string& path)
-{
-	if ((error != kNetProbeErrorNone) || (httpStatus != 200) || (bytes == 0))
-		return false;
-
-	CellFsStat stat;
-
-	return (cellFsStat(path.c_str(), &stat) == CELL_FS_SUCCEEDED) &&
-		(static_cast<uint32_t>(stat.st_size) == bytes);
-}
-
-static FetchPair FetchUpdate(const std::string& dnsUrl, const std::string& dnsPath,
+static UpdateResult FetchUpdate(const std::string& dnsUrl, const std::string& dnsPath,
 	const std::string& gamesUrl, const std::string& gamesPath)
 {
-	FetchPair pair{};
+	UpdateResult result{};
+	result.gamesRequested = !gamesUrl.empty();
 
 	const std::string modulePath = GetCurrentDir() + "qDNSmNetLib.sprx";
 
 	if (!FileExist(modulePath))
-		return pair;
+		return result;
 
 	NetProbeRequest request{};
 	request.magic = kNetProbeMagic;
@@ -78,8 +51,14 @@ static FetchPair FetchUpdate(const std::string& dnsUrl, const std::string& dnsPa
 
 	vsh::strncpy(request.url, dnsUrl.c_str(), sizeof(request.url) - 1);
 	vsh::strncpy(request.outputPath, dnsPath.c_str(), sizeof(request.outputPath) - 1);
+	vsh::strncpy(request.configPath, g_Config.GetFilePath().c_str(),
+		sizeof(request.configPath) - 1);
+	vsh::strncpy(request.gamePath, (GetCurrentDir() + kGameFileName).c_str(),
+		sizeof(request.gamePath) - 1);
 	request.url[sizeof(request.url) - 1] = '\0';
 	request.outputPath[sizeof(request.outputPath) - 1] = '\0';
+	request.configPath[sizeof(request.configPath) - 1] = '\0';
+	request.gamePath[sizeof(request.gamePath) - 1] = '\0';
 
 	if (!gamesUrl.empty())
 	{
@@ -93,7 +72,7 @@ static FetchPair FetchUpdate(const std::string& dnsUrl, const std::string& dnsPa
 	sys_prx_id_t id = sysPrxForUser::sys_prx_load_module(modulePath.c_str(), 0, nullptr);
 
 	if (id < 0)
-		return pair;
+		return result;
 
 	int startModuleResult = -1;
 	int start = sysPrxForUser::_sys_prx_start_module(
@@ -109,71 +88,23 @@ static FetchPair FetchUpdate(const std::string& dnsUrl, const std::string& dnsPa
 		(request.moduleStartSeen != 1) || (request.done != 1) ||
 		(stop != 0) || (unload != 0))
 	{
-		return pair;
+		return result;
 	}
 
-	pair.dnsOk = FetchSucceeded((int)request.httpStatus, (int)request.error,
-		(uint32_t)request.bytes, dnsPath);
+	result.dnsOk = (request.dnsOk == 1);
+	result.gamesOk = (request.gamesOk == 1);
+	result.gamesInvalid = (request.gamesInvalid == 1);
 
-	if (!gamesUrl.empty())
-	{
-		pair.gamesOk = FetchSucceeded((int)request.httpStatus2, (int)request.error2,
-			(uint32_t)request.bytes2, gamesPath);
-	}
-
-	return pair;
-}
-
-static bool ApplyDns(const std::vector<RemoteDnsEntry>& entries)
-{
-	std::vector<DnsServerEntry> previous = g_Config.m_DnsServers;
-	std::vector<DnsServerEntry> merged;
-	std::string error;
-
-	if (!MergeManagedDnsList(entries, g_Config.m_DnsServers, merged, &error))
-		return false;
-
-	g_Config.m_DnsServers.swap(merged);
-
-	if (!g_Config.Save())
-	{
-		g_Config.m_DnsServers.swap(previous);
-		return false;
-	}
-
-	return true;
-}
-
-static bool ApplyGames(const std::string& tempPath, const std::string& finalPath)
-{
-	std::string content;
-
-	if (!ReadFileText(tempPath, content, 2 * 1024 * 1024))
-		return false;
-
-	std::string previous;
-	const bool hadPrevious = ReadFileText(finalPath, previous, 2 * 1024 * 1024);
-
-	if (SaveFile(finalPath, content.data(), content.size()))
-		return true;
-
-	if (hadPrevious)
-		SaveFile(finalPath, previous.data(), previous.size());
-
-	return false;
+	return result;
 }
 
 static void NetUpdateThread(uint64_t)
 {
 	const std::string base = GetCurrentDir();
-	const std::string dnsTemp = base + kDnsTempName;
-	const std::string gamesTemp = base + kGamesTempName;
 	const bool gamesRequested = s_GamesRequested;
 
 	UpdateResult result{};
 	result.gamesRequested = gamesRequested;
-	result.dnsTempPath = dnsTemp;
-	result.gamesTempPath = gamesTemp;
 
 	std::string gamesUrl;
 	std::string gamesPath;
@@ -181,45 +112,10 @@ static void NetUpdateThread(uint64_t)
 	if (gamesRequested)
 	{
 		gamesUrl = kGameListUrl;
-		gamesPath = gamesTemp;
+		gamesPath = base + kGamesTempName;
 	}
 
-	FetchPair pair = FetchUpdate(kDnsListUrl, dnsTemp, gamesUrl, gamesPath);
-
-	if (pair.dnsOk)
-	{
-		std::vector<RemoteDnsEntry> entries;
-
-		if ((LoadDnsList(dnsTemp, entries) == DnsList_Loaded) && !entries.empty())
-		{
-			result.dnsOk = true;
-			result.dnsEntries.swap(entries);
-		}
-	}
-
-	if (!result.dnsOk)
-		RemoveFile(dnsTemp);
-
-	if (gamesRequested)
-	{
-		if (pair.gamesOk)
-		{
-			std::vector<GameListSection> sections;
-
-			if ((LoadGameList(gamesTemp, sections) == GameList_Loaded) &&
-				ValidateGameList(sections))
-			{
-				result.gamesOk = true;
-			}
-			else
-			{
-				result.gamesInvalid = true;
-			}
-		}
-
-		if (!result.gamesOk)
-			RemoveFile(gamesTemp);
-	}
+	result = FetchUpdate(kDnsListUrl, base + kDnsTempName, gamesUrl, gamesPath);
 
 	s_Result = result;
 	__sync_synchronize();
@@ -242,10 +138,6 @@ bool StartNetUpdate()
 		sys_ppu_thread_join(s_ThreadId, &exitCode);
 		s_ThreadId = SYS_PPU_THREAD_ID_INVALID;
 	}
-
-	const std::string base = GetCurrentDir();
-	RemoveFile(base + kDnsTempName);
-	RemoveFile(base + kGamesTempName);
 
 	s_GamesRequested = g_Config.m_Settings.showSupportedGames;
 	s_Running = true;
@@ -290,18 +182,13 @@ void PollNetUpdate()
 	bool gamesApplied = false;
 
 	if (result.dnsOk)
-		dnsApplied = ApplyDns(result.dnsEntries);
-
-	if (result.gamesRequested && result.gamesOk)
 	{
-		gamesApplied = ApplyGames(
-			result.gamesTempPath, GetCurrentDir() + kGameFileName);
+		g_Config.Load();
+		dnsApplied = true;
 	}
 
-	RemoveFile(result.dnsTempPath);
-
-	if (result.gamesRequested)
-		RemoveFile(result.gamesTempPath);
+	if (result.gamesRequested && result.gamesOk)
+		gamesApplied = true;
 
 	if (dnsApplied || gamesApplied)
 		g_GameListPanel.Invalidate();
@@ -341,7 +228,10 @@ void PollNetUpdate()
 		sound = vsh::NotifySound::Error;
 	}
 
-	vsh::ShowNotificationWithIcon(message, icon, sound);
+	if (icon == vsh::NotifyIcon::BlueVerifiedCheckmark)
+		ShowSuccessNotification(std::wstring(message));
+	else
+		vsh::ShowNotificationWithIcon(message, icon, sound);
 }
 
 void StopNetUpdate()
