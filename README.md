@@ -247,4 +247,6 @@ Building) and `vendor/sysutil` — come from the Sony PS3 SDK.
 
 qDNSm itself: © 2026 Tha_14.
 
+Initial translations were produced with [DeepL](https://www.deepl.com/).
+
 See [`LICENSE`](LICENSE).
