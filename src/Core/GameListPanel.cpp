@@ -5,6 +5,7 @@
 #include "Input.hpp"
 #include "InputUi.hpp"
 #include "Language.hpp"
+#include "NetUpdate.hpp"
 #include "Renderer.hpp"
 #include "Menu/Base.hpp"
 #include "Utils/Std.hpp"
@@ -20,8 +21,18 @@ static const float PANEL_HEIGHT = 340.0f;
 static const float PANEL_GAP = 12.0f;
 static const float PANEL_MARGIN = 14.0f;
 static const int VISIBLE_ROWS = 12;
+static const size_t INFO_WRAP_WIDTH = 54;
+static const float INFO_LINE_HEIGHT = 14.0f;
+static const size_t OPENSPY_WRAP_WIDTH = 58;
+static const float OPENSPY_FONT_SIZE = 13.0f;
+static const float OPENSPY_LINE_HEIGHT = 15.0f;
 static const uint64_t SCROLL_STEP_MS = 2000;
 static const uint64_t SCROLL_PAUSE_MS = 5000;
+
+static bool HidesSupportedGames(const std::string& primary)
+{
+	return (primary == "1.1.1.1") || (primary == "8.8.8.8");
+}
 
 static wchar_t LowerAscii(wchar_t character)
 {
@@ -70,6 +81,88 @@ static std::wstring Truncate(const std::wstring& text, size_t maximum)
 	return text.substr(0, maximum - 3) + L"...";
 }
 
+static size_t GlyphWidth(wchar_t character)
+{
+	if (character == L'\t')
+		return 4;
+
+	if (character >= 0x2E80)
+		return 2;
+
+	return 1;
+}
+
+static std::vector<std::wstring> WrapText(const std::wstring& text, size_t maximumWidth)
+{
+	std::vector<std::wstring> lines;
+	size_t start = 0;
+
+	while (start <= text.size())
+	{
+		size_t end = text.find(L'\n', start);
+		const bool explicitBreak = (end != std::wstring::npos);
+
+		if (!explicitBreak)
+			end = text.size();
+
+		if (start == end)
+		{
+			lines.push_back(std::wstring());
+		}
+		else
+		{
+			size_t lineStart = start;
+
+			while (lineStart < end)
+			{
+				size_t cursor = lineStart;
+				size_t width = 0;
+				size_t lastSpace = std::wstring::npos;
+
+				while (cursor < end)
+				{
+					const wchar_t character = text[cursor];
+					const size_t glyphWidth = GlyphWidth(character);
+
+					if ((width + glyphWidth) > maximumWidth)
+						break;
+
+					if (character == L' ')
+						lastSpace = cursor;
+
+					width += glyphWidth;
+					cursor++;
+				}
+
+				if (cursor >= end)
+				{
+					lines.push_back(text.substr(lineStart, end - lineStart));
+					break;
+				}
+
+				size_t breakAt = cursor;
+
+				if ((lastSpace != std::wstring::npos) && (lastSpace > lineStart))
+					breakAt = lastSpace;
+
+				lines.push_back(text.substr(lineStart, breakAt - lineStart));
+
+				lineStart = breakAt;
+
+				while ((lineStart < end) && (text[lineStart] == L' '))
+					lineStart++;
+			}
+		}
+
+		if (!explicitBreak)
+			break;
+
+		start = end + 1;
+	}
+
+	return lines;
+}
+
 static void NotifyError(const wchar_t* message)
 {
 	vsh::ShowNotificationWithIcon(message, vsh::NotifyIcon::Caution, vsh::NotifySound::Error);
@@ -79,12 +172,14 @@ void GameListPanel::ResetData()
 {
 	m_Index = -1;
 	m_State = Panel_NoServer;
-	m_Ip.clear();
+	m_OpenSpy = false;
+	m_Key.clear();
 	m_Name.clear();
 	m_Games.clear();
 	m_SectionAliases.clear();
 	m_Aliases.clear();
 	m_ScrollIndex = 0;
+	m_VisibleRows = static_cast<size_t>(VISIBLE_ROWS);
 	m_ScrollDirection = 1;
 	m_LastTick = 0;
 	m_PauseUntil = 0;
@@ -99,13 +194,25 @@ void GameListPanel::Reset()
 void GameListPanel::Invalidate()
 {
 	m_Index = -2;
-	m_Ip.clear();
+	m_Key.clear();
 	m_LastTick = 0;
 }
 
 void GameListPanel::LoadForIndex(int index)
 {
 	(void)index;
+	LoadForKey(m_Key);
+}
+
+void GameListPanel::LoadForKey(const std::string& key)
+{
+	if (IsNetUpdateBusy())
+	{
+		m_State = Panel_Disabled;
+		return;
+	}
+
+	UpdateVisibleRows();
 
 	m_Games.clear();
 	m_SectionAliases.clear();
@@ -138,7 +245,7 @@ void GameListPanel::LoadForIndex(int index)
 		return;
 	}
 
-	const GameListSection* section = FindGameListSection(sections, m_Ip);
+	const GameListSection* section = FindGameListSection(sections, key);
 
 	if (section == nullptr)
 	{
@@ -185,11 +292,18 @@ void GameListPanel::SetHoveredIndex(int index)
 		return;
 	}
 
-	const bool sameIp = (m_Ip == entry->primary) && !m_Ip.empty();
+	if (HidesSupportedGames(entry->primary))
+	{
+		ResetData();
+		return;
+	}
 
-	if ((index == m_Index) && sameIp && (m_Name == entry->name))
+	const bool sameIp = (m_Key == entry->primary) && !m_Key.empty();
+
+	if (!m_OpenSpy && (index == m_Index) && sameIp && (m_Name == entry->name))
 		return;
 
+	m_OpenSpy = false;
 	m_Index = index;
 	m_Name = entry->name;
 
@@ -203,13 +317,39 @@ void GameListPanel::SetHoveredIndex(int index)
 		return;
 	}
 
-	m_Ip = entry->primary;
+	m_Key = entry->primary;
 	LoadForIndex(index);
+}
+
+void GameListPanel::SetOpenSpyHovered()
+{
+	if (!g_Config.m_Settings.showSupportedGames)
+	{
+		Reset();
+		return;
+	}
+
+	const std::wstring name = T(TEXT_MENU_OPENSPY_PATCH);
+
+	if (m_OpenSpy && (m_Key == kOpenSpyGameListKey) &&
+		(m_Name == name) && (m_State != Panel_Disabled))
+	{
+		return;
+	}
+
+	m_OpenSpy = true;
+	m_Index = -1;
+	m_Key = kOpenSpyGameListKey;
+	m_Name = name;
+	LoadForKey(m_Key);
 }
 
 void GameListPanel::RebuildAliases()
 {
 	m_Aliases.clear();
+
+	if (m_OpenSpy)
+		return;
 
 	for (size_t i = 0; i < m_SectionAliases.size(); i++)
 	{
@@ -238,7 +378,7 @@ void GameListPanel::RebuildAliases()
 	{
 		const DnsServerEntry& entry = g_Config.m_DnsServers[i];
 
-		if ((entry.primary != m_Ip) || EqualsNoCase(entry.name, m_Name))
+		if ((entry.primary != m_Key) || EqualsNoCase(entry.name, m_Name))
 			continue;
 
 		std::wstring alias = entry.name;
@@ -342,6 +482,32 @@ void GameListPanel::OnFrame(bool menuOpen, bool mainMenu)
 	m_SelectWasDown = held;
 }
 
+void GameListPanel::UpdateVisibleRows()
+{
+	m_VisibleRows = static_cast<size_t>(VISIBLE_ROWS);
+
+	if (!m_OpenSpy)
+		return;
+
+	const std::vector<std::wstring> lines = WrapText(T(TEXT_MENU_OPENSPY_HINT), OPENSPY_WRAP_WIDTH);
+	const float listTop = 50.0f + static_cast<float>(lines.size()) * OPENSPY_LINE_HEIGHT + 4.0f;
+	const float footerTop = PANEL_HEIGHT - 28.0f;
+	const float available = footerTop - listTop - 16.0f;
+
+	if (available <= 0.0f)
+	{
+		m_VisibleRows = 1;
+		return;
+	}
+
+	size_t rows = static_cast<size_t>(available / 20.0f) + 1;
+
+	if (rows > static_cast<size_t>(VISIBLE_ROWS))
+		rows = static_cast<size_t>(VISIBLE_ROWS);
+
+	m_VisibleRows = rows;
+}
+
 void GameListPanel::HandleManualScroll()
 {
 	const bool l1Held = g_Input.IsButtonHeld(Input::BUTTON_L1);
@@ -352,7 +518,7 @@ void GameListPanel::HandleManualScroll()
 	m_L1WasDown = l1Held;
 	m_R1WasDown = r1Held;
 
-	if ((m_State != Panel_Ready) || (m_Games.size() <= static_cast<size_t>(VISIBLE_ROWS)) ||
+	if ((m_State != Panel_Ready) || (m_Games.size() <= m_VisibleRows) ||
 		g_Menu.IsInputLocked())
 	{
 		return;
@@ -362,17 +528,17 @@ void GameListPanel::HandleManualScroll()
 
 	if (l1Pressed)
 	{
-		m_ScrollIndex = (m_ScrollIndex > static_cast<size_t>(VISIBLE_ROWS))
-			? (m_ScrollIndex - VISIBLE_ROWS) : 0;
+		m_ScrollIndex = (m_ScrollIndex > m_VisibleRows)
+			? (m_ScrollIndex - m_VisibleRows) : 0;
 
 		m_PauseUntil = now + SCROLL_PAUSE_MS;
 		m_LastTick = now;
 	}
 	else if (r1Pressed)
 	{
-		const size_t maximum = m_Games.size() - VISIBLE_ROWS;
+		const size_t maximum = m_Games.size() - m_VisibleRows;
 
-		m_ScrollIndex += VISIBLE_ROWS;
+		m_ScrollIndex += m_VisibleRows;
 
 		if (m_ScrollIndex > maximum)
 			m_ScrollIndex = maximum;
@@ -384,7 +550,7 @@ void GameListPanel::HandleManualScroll()
 
 void GameListPanel::UpdateScroll()
 {
-	if ((m_State != Panel_Ready) || (m_Games.size() <= static_cast<size_t>(VISIBLE_ROWS)))
+	if ((m_State != Panel_Ready) || (m_Games.size() <= m_VisibleRows))
 		return;
 
 	const uint64_t now = GetTimeNow();
@@ -403,7 +569,7 @@ void GameListPanel::UpdateScroll()
 
 	m_LastTick = now;
 
-	const size_t maximum = m_Games.size() - VISIBLE_ROWS;
+	const size_t maximum = m_Games.size() - m_VisibleRows;
 
 	if (m_ScrollDirection > 0)
 	{
@@ -507,7 +673,8 @@ void GameListPanel::Draw()
 	const paf::vec4 textColor(1.0f, 1.0f, 1.0f, fade);
 	const paf::vec4 dimColor(1.0f, 1.0f, 1.0f, 0.66f * fade);
 
-	DrawText(T(TEXT_GAMELIST_TITLE), left, top - 28.0f, 16.0f, textColor, Renderer::Left);
+	DrawText(T(TEXT_GAMELIST_TITLE),
+		left, top - 28.0f, 16.0f, textColor, Renderer::Left);
 
 	if (m_State == Panel_Ready)
 	{
@@ -515,10 +682,31 @@ void GameListPanel::Draw()
 			right, top - 28.0f, 16.0f, textColor, Renderer::Right);
 	}
 
-	const std::wstring aliases = AliasLine();
+	const std::wstring info = m_OpenSpy
+		? std::wstring(T(TEXT_MENU_OPENSPY_HINT)) : AliasLine();
 
-	if (!aliases.empty())
-		DrawText(aliases, left, top - 50.0f, 12.0f, dimColor, Renderer::Left);
+	std::vector<std::wstring> infoLines;
+
+	if (!info.empty())
+	{
+		infoLines = WrapText(info,
+			m_OpenSpy ? OPENSPY_WRAP_WIDTH : INFO_WRAP_WIDTH);
+	}
+
+	const float infoSize = m_OpenSpy ? OPENSPY_FONT_SIZE : 12.0f;
+	const float infoLineHeight = m_OpenSpy ? OPENSPY_LINE_HEIGHT : INFO_LINE_HEIGHT;
+
+	float infoY = top - 50.0f;
+
+	for (size_t i = 0; i < infoLines.size(); i++)
+	{
+		DrawText(infoLines[i], left, infoY, infoSize, dimColor, Renderer::Left);
+		infoY -= infoLineHeight;
+	}
+
+	const float listTop = infoLines.empty()
+		? (top - 68.0f)
+		: (top - 50.0f - static_cast<float>(infoLines.size()) * infoLineHeight - 4.0f);
 
 	std::wstring message0;
 	std::wstring message1;
@@ -556,12 +744,12 @@ void GameListPanel::Draw()
 	if (m_State == Panel_Ready)
 	{
 		const size_t first = m_ScrollIndex;
-		const size_t last = (first + VISIBLE_ROWS < m_Games.size())
-			? (first + VISIBLE_ROWS) : m_Games.size();
+		const size_t last = (first + m_VisibleRows < m_Games.size())
+			? (first + m_VisibleRows) : m_Games.size();
 
 		for (size_t i = first; i < last; i++)
 		{
-			const float rowY = top - 58.0f - 10.0f - static_cast<float>(i - first) * 20.0f;
+			const float rowY = listTop - static_cast<float>(i - first) * 20.0f;
 			DrawText(Truncate(m_Games[i], 48), left, rowY, 15.0f, textColor, Renderer::Left);
 		}
 	}
@@ -570,11 +758,11 @@ void GameListPanel::Draw()
 
 	DrawText(T(TEXT_GAMELIST_HIDE), left, footerY, 12.0f, dimColor, Renderer::Left);
 
-	if ((m_State == Panel_Ready) && (m_Games.size() > static_cast<size_t>(VISIBLE_ROWS)))
+	if ((m_State == Panel_Ready) && (m_Games.size() > m_VisibleRows))
 	{
 		const size_t first = m_ScrollIndex;
-		const size_t last = (first + VISIBLE_ROWS < m_Games.size())
-			? (first + VISIBLE_ROWS) : m_Games.size();
+		const size_t last = (first + m_VisibleRows < m_Games.size())
+			? (first + m_VisibleRows) : m_Games.size();
 
 		std::wstring page = to_wstring(static_cast<uint64_t>(first + 1));
 		page += L"-";

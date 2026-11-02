@@ -14,6 +14,9 @@ MAX_ALIASES = 16
 MAX_GAME_LENGTH = 96
 MAX_ALIAS_LENGTH = 64
 MAX_DNS_ENTRIES = 256
+MAX_ONLINE_VERSION = 32
+MAX_ONLINE_URL = 256
+MAX_VERSION_PARTS = 8
 
 
 class ValidationError(Exception):
@@ -62,6 +65,22 @@ def valid_ipv4(value: str) -> bool:
         return True
     except ipaddress.AddressValueError:
         return False
+
+
+def valid_version(value: str) -> bool:
+    if not value or len(value) > MAX_ONLINE_VERSION:
+        return False
+
+    parts = value.split(".")
+    if len(parts) > MAX_VERSION_PARTS:
+        return False
+
+    return all(
+        part
+        and len(part) <= 9
+        and all("0" <= character <= "9" for character in part)
+        for part in parts
+    )
 
 
 def parse_game_file(path: Path) -> dict:
@@ -177,11 +196,40 @@ def parse_dns_file(path: Path) -> dict:
     entries: list[dict] = []
     current: dict | None = None
     pairs: set[tuple[str, str]] = set()
+    online_version: str | None = None
+    online_url: str | None = None
 
     for line_number, raw in enumerate(lines, 1):
         line = trim(raw)
 
-        if not line or line.startswith("#") or line.startswith(";"):
+        if not line:
+            continue
+
+        if line.startswith("#") or line.startswith(";"):
+            comment = trim(line[1:])
+
+            if "=" in comment:
+                key, value = comment.split("=", 1)
+                if trim(key) == "OnlineVersion":
+                    if online_version is not None:
+                        raise ValidationError(f"{path}:{line_number}: duplicate OnlineVersion comment")
+
+                    value = trim(value)
+                    if not valid_version(value):
+                        raise ValidationError(f"{path}:{line_number}: invalid OnlineVersion")
+
+                    online_version = value
+                elif trim(key) == "OnlineUrl":
+                    if online_url is not None:
+                        raise ValidationError(f"{path}:{line_number}: duplicate OnlineUrl comment")
+
+                    value = trim(value)
+                    if not value or len(value) > MAX_ONLINE_URL:
+                        raise ValidationError(f"{path}:{line_number}: invalid OnlineUrl")
+
+                    check_text(value, f"{path}:{line_number}: OnlineUrl")
+                    online_url = value
+
             continue
 
         if line.startswith("["):
@@ -258,6 +306,12 @@ def parse_dns_file(path: Path) -> dict:
     if len(entries) > MAX_DNS_ENTRIES:
         raise ValidationError(f"{path}: more than {MAX_DNS_ENTRIES} entries")
 
+    if online_version is None:
+        raise ValidationError(f"{path}: missing OnlineVersion comment")
+
+    if online_url is None:
+        raise ValidationError(f"{path}: missing OnlineUrl comment")
+
     for entry in entries:
         pair = (entry["name"].lower(), entry["primary"])
         if pair in pairs:
@@ -272,6 +326,8 @@ def parse_dns_file(path: Path) -> dict:
         "entries": entries,
         "managed": sum(1 for entry in entries if entry["managed"] == 1),
         "shared": sum(1 for count in shared.values() if count > 1),
+        "online_version": online_version,
+        "online_url": online_url,
     }
 
 
@@ -320,6 +376,8 @@ def main() -> int:
     print(f"  entries: {len(dns['entries'])}")
     print(f"  managed: {dns['managed']}")
     print(f"  shared primary IPs: {dns['shared']}")
+    print(f"  online version: {dns['online_version']}")
+    print(f"  online URL: {dns['online_url']}")
 
     dns_ips = {entry["primary"] for entry in dns["entries"]}
     for section in game["sections"]:

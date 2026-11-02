@@ -14,6 +14,7 @@
 #include "Core/Network.hpp"   // StartManualDnsWorker
 
 #include "Core/NetUpdate.hpp" // StopNetUpdate
+#include "Core/OpenSpyPatch.hpp" // StopOpenSpyPatch
 
 // Macros defining our module informations as well as our entry/exit point
 SYS_MODULE_INFO(qDNSm, 0, 1, 1);
@@ -185,7 +186,7 @@ int module_start(unsigned int args, void* argp)
 
       sys_ppu_thread_exit(0);
 
-   }, 0, 1059, 4096, SYS_PPU_THREAD_CREATE_JOINABLE, "qDNSmStart");
+   }, 0, 1059, 0x10000, SYS_PPU_THREAD_CREATE_JOINABLE, "qDNSmStart");
 
    // Exit thread using directly the syscall and not the user mode library or else we will crash
    _sys_ppu_thread_exit(0);
@@ -199,6 +200,7 @@ int module_stop(unsigned int args, void* argp)
     int ret = sys_ppu_thread_create(&stopPpuThreadId, [](uint64_t arg) -> void
     {
        StopNetUpdate();
+       StopOpenSpyPatch();
 
        RemoveHooks();
 

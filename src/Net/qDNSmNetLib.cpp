@@ -4,6 +4,7 @@
 
 #include "NetProbeProtocol.hpp"
 #include "TlsFetch.hpp"
+#include "UpdateJob.hpp"
 
 SYS_MODULE_INFO(qDNSmNetLib, 0, 1, 1);
 SYS_MODULE_START(module_start);
@@ -48,6 +49,8 @@ extern "C" int module_start(size_t args, void* argp)
 				request->httpStatus2 = second.httpStatus;
 				request->bytes2 = second.bytes;
 			}
+
+			ApplyUpdateResult(*request);
 		}
 		else
 		{

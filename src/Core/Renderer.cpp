@@ -2,6 +2,18 @@
 
 Renderer g_Renderer;
 
+static void SetUpdateNoticeClip(paf::PhText* label, paf::vec2 size)
+{
+    auto* clip = reinterpret_cast<int16_t*>(reinterpret_cast<uint8_t*>(label) + 0x246);
+
+    clip[0] = static_cast<int16_t>(size.x * 0.5f);
+    clip[1] = 0;
+    clip[2] = static_cast<int16_t>(size.x);
+    clip[3] = static_cast<int16_t>(size.y);
+    clip[4] = 0x202;
+}
+
+
 Renderer::~Renderer()
 {
     DestroyWidgets();
@@ -101,6 +113,13 @@ void Renderer::ForgetWidgets()
     m_PlaneOnTop = nullptr;
     m_TextOnTop = nullptr;
 
+    m_UpdateNoticeTextWidget = nullptr;
+    m_UpdateNoticeCachedText.clear();
+    m_UpdateNoticeCachedSize = {};
+    m_UpdateNoticeCachedHeight = 0.0f;
+    m_UpdateNoticeCachedOffset = -1.0f;
+    m_UpdateNoticeCachedGlyphSet = -1;
+
     m_CurrentText = 0;
     m_CurrentTopText = 0;
     m_CurrentPlane = 0;
@@ -123,6 +142,17 @@ void Renderer::DestroyWidgets()
         delete plane;
     m_PlaneNodeChilds.clear();
 
+    if (m_UpdateNoticeTextWidget)
+    {
+        delete m_UpdateNoticeTextWidget;
+        m_UpdateNoticeTextWidget = nullptr;
+    }
+
+    m_UpdateNoticeCachedText.clear();
+    m_UpdateNoticeCachedSize = {};
+    m_UpdateNoticeCachedHeight = 0.0f;
+    m_UpdateNoticeCachedOffset = -1.0f;
+    m_UpdateNoticeCachedGlyphSet = -1;
 
     if (m_TextNode)
     {
@@ -200,6 +230,9 @@ void Renderer::HideWidgets()
 
     if (m_TextOnTop)
         m_TextOnTop->ClearColor();
+
+    if (m_UpdateNoticeTextWidget)
+        m_UpdateNoticeTextWidget->ClearColor();
 }
 
 void Renderer::CreateGroups()
@@ -298,6 +331,24 @@ paf::PhText* Renderer::GetCurrentTopText()
     return currentText;
 }
 
+paf::PhText* Renderer::GetUpdateNoticeText()
+{
+    if (!m_CanDraw || !m_TextNode)
+        return nullptr;
+
+    if (!m_UpdateNoticeTextWidget)
+    {
+        m_UpdateNoticeTextWidget = CreateText(m_TextNode);
+        m_UpdateNoticeCachedText.clear();
+        m_UpdateNoticeCachedSize = {};
+        m_UpdateNoticeCachedHeight = 0.0f;
+        m_UpdateNoticeCachedOffset = -1.0f;
+        m_UpdateNoticeCachedGlyphSet = -1;
+    }
+
+    return m_UpdateNoticeTextWidget;
+}
+
 paf::PhPlane* Renderer::GetCurrentPlane()
 {
     if (m_PlaneNodeChilds.size() <= m_CurrentPlane)
@@ -393,6 +444,88 @@ void Renderer::Text(std::wstring const& text, paf::vec2 position, float height, 
 void Renderer::TextOnTop(std::wstring const& text, paf::vec2 position, float height, paf::vec4 color, Align horizontalAlign, Align verticalAlign)
 {
     TextImpl(text, position, height, color, horizontalAlign, verticalAlign, 0.0f, true, GlyphSet_Default, true);
+}
+
+void Renderer::TextScrolling(std::wstring const& text, paf::vec2 position, paf::vec2 size, float height, float offset, paf::vec4 color, Align horizontalAlign, Align verticalAlign, GlyphSet glyphSet)
+{
+    paf::PhText* label = GetUpdateNoticeText();
+
+    if (!label || color.a <= 0.0 || text.empty() || size.x <= 0.0f || size.y <= 0.0f)
+    {
+        if (label)
+            label->ClearColor();
+
+        return;
+    }
+
+    position.y += (height * 0.15f);
+    height *= 0.80f;
+
+    ViewportScale(position);
+    ViewportScale(size);
+    ViewportScaleVertical(height);
+
+    paf::vec2 offsetPosition{ offset, 0.0f };
+    ViewportScale(offsetPosition);
+
+    const int glyph = static_cast<int>(glyphSet);
+    const bool changed = (m_UpdateNoticeCachedText != text) ||
+        (m_UpdateNoticeCachedHeight != height) ||
+        (m_UpdateNoticeCachedGlyphSet != glyph);
+
+    if (changed)
+    {
+        label->SetTextHeight(height);
+        label->SetText(text, glyph);
+        label->RefreshText();
+
+        m_UpdateNoticeCachedText = text;
+        m_UpdateNoticeCachedHeight = height;
+        m_UpdateNoticeCachedGlyphSet = glyph;
+        m_UpdateNoticeCachedOffset = -1.0f;
+    }
+
+    label->SetPosition(position)
+        .SetColor(color)
+        .SetRotation(0.0f, false)
+        .SetStyle(paf::PhWidget::Anchor, int(horizontalAlign | verticalAlign));
+
+    if ((m_UpdateNoticeCachedSize.x != size.x) || (m_UpdateNoticeCachedSize.y != size.y))
+    {
+        label->SetSize(size.x, size.y, 0.0f);
+        m_UpdateNoticeCachedSize = size;
+        m_UpdateNoticeCachedOffset = -1.0f;
+    }
+
+    label->SetStyle(paf::PhWidget::DrawTextShadow, true);
+    label->SetStyle(paf::PhWidget::TextAlignment, int(horizontalAlign));
+
+    if (m_UpdateNoticeCachedOffset != offsetPosition.x)
+    {
+        label->SetColumnOffset(offsetPosition.x);
+        m_UpdateNoticeCachedOffset = offsetPosition.x;
+    }
+
+    SetUpdateNoticeClip(label, size);
+}
+
+float Renderer::MeasureText(std::wstring const& text, float height, GlyphSet glyphSet)
+{
+    if (!m_CanDraw || !m_TextNode || text.empty())
+        return 0.0f;
+
+    paf::PhText* label = CreateText(m_TextNode);
+    if (!label)
+        return 0.0f;
+
+    label->SetTextHeight(height * 0.80f);
+    label->SetText(text, static_cast<int>(glyphSet));
+    label->RefreshText();
+
+    const float width = label->GetTextWidth();
+
+    delete label;
+    return width;
 }
 
 void Renderer::TextImpl(std::wstring const& text, paf::vec2 position, float height, paf::vec4 color, Align horizontalAlign, Align verticalAlign, float angle, bool drawShadow, GlyphSet glyphSet, bool onTop)

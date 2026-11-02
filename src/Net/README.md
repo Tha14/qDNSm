@@ -2,7 +2,8 @@
 
 `qDNSmNetLib.sprx` is the update worker. It is loaded only while an update is
 running, performs the HTTP/TLS downloads, and is unloaded again by the main
-plugin. It must not import VSH, paf, or the C++ standard library.
+plugin. It must not import VSH or paf. The update job uses the export-stub C++
+library for its string and vector handling.
 
 ## Files
 
@@ -10,6 +11,9 @@ plugin. It must not import VSH, paf, or the C++ standard library.
 |---|---|
 | `qDNSmNetLib.cpp` | Module entry points and update dispatch. |
 | `TlsFetch.cpp` / `.hpp` | TLS 1.2 handshake, HTTPS GET, body decode, temp-file write. |
+| `UpdateJob.cpp` / `.hpp` | DNS/config merge, catalogue validation, and final file writes. |
+| `DnsList.cpp` / `.hpp` | Managed DNS list parser and merge. |
+| `NetGameList.cpp` | Host-mode game catalogue parser/validator for the module. |
 | `qDNSmNetLib.vcxproj` | SNC project. Builds and signs to `bin/<Config>-PS3/qDNSmNetLib.sprx`. |
 | `NetProbeProtocol.hpp` | Request/response struct shared with the main plugin. |
 | `UpdateUrls.hpp` | DNS and game-list URLs. |
@@ -55,9 +59,11 @@ Both files live in the plugin directory:
 /dev_hdd0/plugins/qDNSmNetLib.sprx
 ```
 
-`NetUpdate` validates the DNS list (`DnsList`) and the game catalogue
-(`GameList`) before applying either. A failed fetch or an invalid file leaves
-the previous file in place. No diagnostic files are written.
+`UpdateJob` validates the DNS list and merges it into `qDNSm.ini`, and
+validates the game catalogue before replacing `qDNSm-server-games.ini`. The DNS
+list's `# OnlineVersion=` and `# OnlineUrl=` comments are stored in
+`qDNSm.ini`. A failed fetch or an invalid file leaves the previous file,
+version, and link in place. No diagnostic files are written.
 
 The module links mbedTLS from source (no prebuilt library), uses a 256 KiB
 static memory-buffer arena, and gets entropy from `sys_get_random_number`.

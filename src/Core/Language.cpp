@@ -175,10 +175,9 @@ const wchar_t* T(TextId id)
 	return TS(id).c_str();
 }
 
-std::wstring FormatText(TextId id, const std::wstring& argument)
+static void ReplaceToken(std::wstring& text, const std::wstring& token,
+	const std::wstring& argument)
 {
-	std::wstring text = TS(id);
-	const std::wstring token = L"{0}";
 	size_t position = 0;
 
 	while ((position = text.find(token, position)) != std::wstring::npos)
@@ -186,7 +185,21 @@ std::wstring FormatText(TextId id, const std::wstring& argument)
 		text.replace(position, token.size(), argument);
 		position += argument.size();
 	}
+}
 
+std::wstring FormatText(TextId id, const std::wstring& argument)
+{
+	std::wstring text = TS(id);
+	ReplaceToken(text, L"{0}", argument);
+	return text;
+}
+
+std::wstring FormatText(TextId id, const std::wstring& first,
+	const std::wstring& second)
+{
+	std::wstring text = TS(id);
+	ReplaceToken(text, L"{0}", first);
+	ReplaceToken(text, L"{1}", second);
 	return text;
 }
 

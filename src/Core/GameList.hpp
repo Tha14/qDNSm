@@ -4,9 +4,11 @@
 #include <string>
 #include <vector>
 
+static const char kOpenSpyGameListKey[] = "OpenSpy";
+
 struct GameListSection
 {
-	std::string ip;
+	std::string key;
 	std::vector<std::wstring> games;
 	std::vector<std::wstring> aliases;
 };
@@ -28,13 +30,10 @@ enum GameListLoadResult
  */
 bool ParseGameList(const char* data, size_t size, std::vector<GameListSection>& out);
 
-/*
- * Repository-level validation. Unlike ParseGameList(), this rejects an empty catalogue and
- * any section that has aliases but no games.
- */
+/* Repository-level validation: non-empty, no alias-only sections, no OpenSpy aliases. */
 bool ValidateGameList(const std::vector<GameListSection>& sections);
 
 GameListLoadResult LoadGameList(const std::string& path, std::vector<GameListSection>& out);
 
 const GameListSection* FindGameListSection(const std::vector<GameListSection>& sections,
-	const std::string& ip);
+	const std::string& key);

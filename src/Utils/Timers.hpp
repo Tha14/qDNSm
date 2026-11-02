@@ -45,6 +45,7 @@ public:
 
     bool IsAlreadyPresent(float* pFrom);
     TimerData* FindTimer(float* pFrom);
+    void Remove(float* pFrom);
 
     void Add(float* from, float to, uint64_t duration, uint64_t startDelay = 0, float(*interpolation)(float) = Ease::Linear, void(*callback)(float*) = nullptr);
 

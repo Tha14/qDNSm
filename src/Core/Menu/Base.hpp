@@ -5,6 +5,7 @@
 #include "Utils/Timers.hpp"
 #include "Utils/Std.hpp"
 #include "Core/Input.hpp"
+#include "Core/MemoryWarning.hpp"
 #include "Core/Renderer.hpp"
 #include "Core/Helpers.hpp"
 #include "Scrolling.hpp"
@@ -19,10 +20,12 @@ public:
    Menu(Function mainSubmenu);
 
    bool IsOpened();
+   bool IsFullyOpen() const;
    bool IsMoving();
    void SetMovingState(bool state);
-   void SetBusyState(bool busy, bool reconnecting);
+   void SetBusyState(bool busy, bool reconnecting, bool patching = false);
    bool IsInputLocked() const;
+   void ForceClose();
    void OnUpdate();
 
    void SetOverlay(Function fn);
@@ -33,7 +36,7 @@ public:
    float GetBackgroundOpacity() const;
    float GetBackgroundSize() const;
 
-   Menu& Option(const std::wstring& text);
+   Menu& Option(const std::wstring& text, bool disabled = false);
    Menu& Submenu(Function sub);
    Menu& Skip();
    Menu& Toggle(bool& var);
@@ -125,11 +128,16 @@ private:
    void UpdateUI();
 
    void DrawHeader();
+   void DrawMemoryWarning();
    void DrawBody();
    void DrawHighlightBar();
    void DrawFooter();
    void DrawDescription();
    void DrawBusyOverlay();
+   void UpdateMemoryWarning();
+   void RefreshUpdateNotice();
+   void UpdateUpdateNotice();
+   void DrawUpdateNotice();
 
    paf::vec4 ListTextColor() const;
 
@@ -172,7 +180,7 @@ public:
    paf::vec2 position{ -480.0, -35.0 };
    paf::vec2 safeArea{ 31.0, 18.0 };
    float sizeHeader = 40.0;
-   float sizeWidth = 228.0;
+   float sizeWidth = 260.0;
    float sizeText = 18.0;
    float sizeTextHeader = 30.0;
    float sizeTextDescription = 18.0;
@@ -189,6 +197,7 @@ private:
    bool m_StateOpened{};
    bool m_InputLocked{};
    bool m_BusyReconnecting{};
+   bool m_BusyPatching{};
 
    Function m_OnMain{};
    Function m_MainMenu{};
@@ -198,7 +207,7 @@ private:
    Function m_SubmenuDelay{};
 
    static const unsigned maxSubmenuLevels = 20;
-   static const unsigned maxOptionsPerPage = 7;
+   static const unsigned maxOptionsPerPage = 9;
    Function m_LastSubmenu[maxSubmenuLevels]{};
    MenuSelection m_LastSelection[maxSubmenuLevels]{};
 
@@ -207,6 +216,7 @@ private:
 
    int m_SubmenuLevel = 0;
    int m_PrintingOption = 0;
+   bool m_PrintingOptionDisabled{};
 
    /* Carries its own row count: it used to be one global read from the previous frame, which
     * after a submenu switch described the wrong menu. */
@@ -228,6 +238,27 @@ private:
    bool m_LanguageUnloaded{ true };
 
    std::wstring m_DescriptionText;
+
+   enum UpdateNoticePhase
+   {
+      UpdateNotice_Static,
+      UpdateNotice_ScrollLeft,
+      UpdateNotice_PauseLeft,
+      UpdateNotice_ScrollRight,
+      UpdateNotice_PauseRight
+   };
+
+   MemoryWarningLevel m_MemoryWarningLevel{ MemoryWarningLevel::None };
+   uint64_t m_MemoryWarningNextCheck{};
+   std::wstring m_UpdateNoticeText;
+   std::string m_UpdateNoticeVersion;
+   std::string m_UpdateNoticeLanguage;
+   std::string m_UpdateNoticeUrl;
+   float m_UpdateNoticeTextWidth{};
+   float m_UpdateNoticeMaxOffset{};
+   float m_UpdateNoticeOffset{};
+   uint64_t m_UpdateNoticePhaseStart{};
+   UpdateNoticePhase m_UpdateNoticePhase{ UpdateNotice_Static };
 
    bool m_EditingAlpha = true;
    paf::vec4* m_ColorToEdit{};

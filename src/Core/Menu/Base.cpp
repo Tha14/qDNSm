@@ -1,11 +1,52 @@
 #include "Base.hpp"
 #include "../InputUi.hpp"
 #include "../Config.hpp"
+#include "../MemoryWarning.hpp"
 #include "../Version.hpp"   // QDNSM_VERSION
 #include "../Language.hpp"
 #include <functional>
 
 Menu g_Menu;
+
+static bool CanOpenMenu()
+{
+   return paf::View::Find("xmb_plugin") != nullptr;
+}
+
+static const float UPDATE_NOTICE_PADDING = 8.0f;
+static const float UPDATE_NOTICE_GAP = 4.0f;
+static const float UPDATE_NOTICE_SPEED = 40.0f;
+static const uint64_t UPDATE_NOTICE_STATIC_MS = 5000;
+static const uint64_t UPDATE_NOTICE_PAUSE_MS = 5000;
+static const uint64_t MEMORY_WARNING_FLASH_MS = 500;
+static const uint64_t MEMORY_WARNING_CHECK_MS = 3000;
+
+static float UpdateNoticeGlyphAdvance(wchar_t character, float height)
+{
+   if ((character == L' ') || (character == L'.') || (character == L':') ||
+      (character == L'|') || (character == L'\''))
+   {
+      return height * 0.30f;
+   }
+
+   if ((character == L'i') || (character == L'l') || (character == L'!'))
+      return height * 0.28f;
+
+   if (character >= 0x2E80)
+      return height * 1.05f;
+
+   return height * 0.62f;
+}
+
+static float MeasureUpdateNoticeText(const std::wstring& text, float height)
+{
+   float width = 0.0f;
+
+   for (size_t i = 0; i < text.size(); i++)
+      width += UpdateNoticeGlyphAdvance(text[i], height);
+
+   return width;
+}
 
 Menu::Menu(Function mainSubmenu)
    : m_MainMenu(mainSubmenu) {}
@@ -13,6 +54,34 @@ Menu::Menu(Function mainSubmenu)
 bool Menu::IsOpened()
 {
    return m_OpacityGlobal > 0.0 || m_StateOpened;
+}
+
+bool Menu::IsFullyOpen() const
+{
+   return m_StateOpened && (m_OpacityText >= 1.0f);
+}
+
+void Menu::ForceClose()
+{
+   g_InputUi.Cancel();
+   OnClose();
+
+   g_Timer.Remove(&m_SizeBackground);
+   g_Timer.Remove(&m_OpacityBackground);
+   g_Timer.Remove(&m_OpacityGlobal);
+   g_Timer.Remove(&m_OpacityHighlightBar);
+   g_Timer.Remove(&m_OpacityText);
+
+   m_SizeBackground = 0.0f;
+   m_OpacityBackground = 0.0f;
+   m_OpacityGlobal = 0.0f;
+   m_OpacityHighlightBar = 0.0f;
+   m_OpacityText = 0.0f;
+   m_InputLocked = false;
+   m_BusyReconnecting = false;
+   m_BusyPatching = false;
+   m_SubmenuDelay = nullptr;
+   m_DescriptionText.clear();
 }
 
 bool Menu::IsMoving()
@@ -25,10 +94,11 @@ void Menu::SetMovingState(bool state)
     stateMoving = state;
 }
 
-void Menu::SetBusyState(bool busy, bool reconnecting)
+void Menu::SetBusyState(bool busy, bool reconnecting, bool patching)
 {
     m_InputLocked = busy;
     m_BusyReconnecting = reconnecting;
+    m_BusyPatching = patching;
 }
 
 bool Menu::IsInputLocked() const
@@ -68,8 +138,12 @@ float Menu::GetBackgroundSize() const
 
 paf::vec4 Menu::ListTextColor() const
 {
-    return paf::vec4(colorText.r, colorText.g, colorText.b,
-        m_OpacityText * (m_InputLocked ? 0.35f : 1.0f));
+    const float alpha = m_OpacityText * (m_InputLocked ? 0.35f : 1.0f);
+
+    if (m_PrintingOptionDisabled)
+        return paf::vec4(colorText.r * 0.45f, colorText.g * 0.45f, colorText.b * 0.45f, alpha);
+
+    return paf::vec4(colorText.r, colorText.g, colorText.b, alpha);
 }
 
 bool Menu::IsInitialized()
@@ -190,7 +264,7 @@ bool Menu::IsHovered()
 
 bool Menu::IsPressed()
 {
-   if (IsHovered())
+   if (!m_PrintingOptionDisabled && IsHovered())
       return IsEnterPressed();
 
    return false;
@@ -198,7 +272,7 @@ bool Menu::IsPressed()
 
 bool Menu::IsDeletePressed()
 {
-	if (IsHovered())
+	if (!m_PrintingOptionDisabled && IsHovered())
 		return IsDeleteButtonPressed();
 
 	return false;
@@ -206,7 +280,7 @@ bool Menu::IsDeletePressed()
 
 bool Menu::IsEditPressed()
 {
-	if (IsHovered())
+	if (!m_PrintingOptionDisabled && IsHovered())
 		return IsEditButtonPressed();
 
 	return false;
@@ -219,6 +293,12 @@ void Menu::OnOpen()
    m_StringOptionNextRepeat = 0;
    m_LanguageUnloaded = false;
    Language_LoadAll();
+   m_MemoryWarningLevel = GetMemoryWarningLevel();
+   m_MemoryWarningNextCheck = GetTimeNow() + MEMORY_WARNING_CHECK_MS;
+   m_UpdateNoticeVersion.clear();
+   m_UpdateNoticeLanguage.clear();
+   m_UpdateNoticeUrl.clear();
+   RefreshUpdateNotice();
    m_CurrentMenu = (m_SavedMenu == nullptr) ? m_MainMenu : m_SavedMenu;
    m_SubmenuLevel = (m_SavedMenu == nullptr) ? 0 : m_SavedSubmenuLevel;
 
@@ -320,8 +400,7 @@ void Menu::UpdateButtons()
     {
         if (!m_StateOpened && (m_OpacityGlobal == 0.0))
         {
-            if (IsOpenPressed() &&
-                vsh::GetCooperationMode() == vsh::CooperationMode::XMB)
+            if (IsOpenPressed() && CanOpenMenu())
                 OnOpen();
 
             WhileClosed();
@@ -342,8 +421,7 @@ void Menu::UpdateButtons()
 
     if (!m_StateOpened && (m_OpacityGlobal == 0.0)) // fully closed
     {
-        if (IsOpenPressed() &&
-            vsh::GetCooperationMode() == vsh::CooperationMode::XMB)
+        if (IsOpenPressed() && CanOpenMenu())
             OnOpen();
 
         WhileClosed();
@@ -397,6 +475,12 @@ void Menu::UpdatePosition()
       {
          float yAdvance = position.y + stickY * 5.0;
          float ySafeLimit = g_Renderer.m_ViewportHeight / 2 - m_SizeBackground / 2 - sizeText;
+
+         if (!m_UpdateNoticeText.empty())
+            ySafeLimit -= (sizeText + 8.0f);
+
+         if (ySafeLimit < 0.0f)
+            ySafeLimit = 0.0f;
 
          if (yAdvance > -ySafeLimit && yAdvance < ySafeLimit)
             position.y += stickY * 5.0;
@@ -456,6 +540,7 @@ void Menu::UpdateUI()
    if (g_InputUi.IsActive())
    {
       m_PrintingOption = 0;
+      m_PrintingOptionDisabled = false;
       g_InputUi.Update();
       g_InputUi.Draw();
       return;
@@ -470,6 +555,7 @@ void Menu::UpdateUI()
    if (m_OpacityGlobal > 0.0)
    {
       m_PrintingOption = 0;
+      m_PrintingOptionDisabled = false;
       m_DescriptionText.clear();
 
       /*
@@ -478,16 +564,21 @@ void Menu::UpdateUI()
        */
       Clamp(m_Selection, maxOptionsPerPage);
 
+      RefreshUpdateNotice();
+      UpdateUpdateNotice();
       UpdatePosition();
       UpdateBackgroundSize();
       UpdateHighlightBarPos();
+      UpdateMemoryWarning();
 
       // Update background opacity
       if (m_OpacityGlobal == 1.0)
          m_OpacityBackground = colorBackground.a;
 
       DrawHeader();
+      DrawUpdateNotice();
       DrawBody();
+      DrawMemoryWarning();
       DrawHighlightBar();
 
       // Display current menu
@@ -541,6 +632,163 @@ void Menu::OnUpdate()
    UpdateUI();
 }
 
+void Menu::UpdateMemoryWarning()
+{
+   const uint64_t now = GetTimeNow();
+
+   if (now < m_MemoryWarningNextCheck)
+      return;
+
+   m_MemoryWarningLevel = GetMemoryWarningLevel();
+   m_MemoryWarningNextCheck = now + MEMORY_WARNING_CHECK_MS;
+}
+
+void Menu::RefreshUpdateNotice()
+{
+   const std::string& version = g_Config.m_Settings.onlineVersion;
+   const std::string& url = g_Config.m_Settings.onlineUrl;
+   const std::string& language = Language_ActiveCode();
+
+   if ((version == m_UpdateNoticeVersion) &&
+      (url == m_UpdateNoticeUrl) &&
+      (language == m_UpdateNoticeLanguage))
+   {
+      return;
+   }
+
+   m_UpdateNoticeVersion = version;
+   m_UpdateNoticeUrl = url;
+   m_UpdateNoticeLanguage = language;
+   m_UpdateNoticeText.clear();
+   m_UpdateNoticeTextWidth = 0.0f;
+   m_UpdateNoticeMaxOffset = 0.0f;
+   m_UpdateNoticeOffset = 0.0f;
+   m_UpdateNoticePhase = UpdateNotice_Static;
+   m_UpdateNoticePhaseStart = GetTimeNow();
+
+   if (!IsVersionNewer(version, QDNSM_VERSION_ASCII))
+      return;
+
+   std::wstring versionWide;
+   std::wstring urlWide;
+   AsciiToWide(versionWide, version);
+   AsciiToWide(urlWide, url);
+   m_UpdateNoticeText = FormatText(TEXT_UPDATE_AVAILABLE, versionWide, urlWide);
+
+   const float textHeight = sizeText / 1.2f;
+   const float innerWidth = sizeWidth - UPDATE_NOTICE_PADDING * 2.0f;
+   m_UpdateNoticeTextWidth = g_Renderer.MeasureText(m_UpdateNoticeText, textHeight);
+
+   if (m_UpdateNoticeTextWidth <= 0.0f)
+      m_UpdateNoticeTextWidth = MeasureUpdateNoticeText(m_UpdateNoticeText, textHeight * 0.80f);
+
+   if (m_UpdateNoticeTextWidth > innerWidth)
+      m_UpdateNoticeMaxOffset = m_UpdateNoticeTextWidth - innerWidth;
+}
+
+void Menu::UpdateUpdateNotice()
+{
+   if (m_UpdateNoticeText.empty() || (m_UpdateNoticeMaxOffset <= 0.0f))
+      return;
+
+   uint64_t now = GetTimeNow();
+
+   if (now < m_UpdateNoticePhaseStart)
+      m_UpdateNoticePhaseStart = now;
+
+   const uint64_t elapsed = now - m_UpdateNoticePhaseStart;
+   const float distance = (UPDATE_NOTICE_SPEED * static_cast<float>(elapsed)) / 1000.0f;
+
+   switch (m_UpdateNoticePhase)
+   {
+   case UpdateNotice_Static:
+      if (elapsed >= UPDATE_NOTICE_STATIC_MS)
+      {
+         m_UpdateNoticePhase = UpdateNotice_ScrollLeft;
+         m_UpdateNoticePhaseStart = now;
+         m_UpdateNoticeOffset = 0.0f;
+      }
+      break;
+
+   case UpdateNotice_ScrollLeft:
+      m_UpdateNoticeOffset = distance;
+
+      if (m_UpdateNoticeOffset >= m_UpdateNoticeMaxOffset)
+      {
+         m_UpdateNoticeOffset = m_UpdateNoticeMaxOffset;
+         m_UpdateNoticePhase = UpdateNotice_PauseLeft;
+         m_UpdateNoticePhaseStart = now;
+      }
+      break;
+
+   case UpdateNotice_PauseLeft:
+      if (elapsed >= UPDATE_NOTICE_PAUSE_MS)
+      {
+         m_UpdateNoticePhase = UpdateNotice_ScrollRight;
+         m_UpdateNoticePhaseStart = now;
+      }
+      break;
+
+   case UpdateNotice_ScrollRight:
+      m_UpdateNoticeOffset = m_UpdateNoticeMaxOffset - distance;
+
+      if (m_UpdateNoticeOffset <= 0.0f)
+      {
+         m_UpdateNoticeOffset = 0.0f;
+         m_UpdateNoticePhase = UpdateNotice_PauseRight;
+         m_UpdateNoticePhaseStart = now;
+      }
+      break;
+
+   case UpdateNotice_PauseRight:
+      if (elapsed >= UPDATE_NOTICE_PAUSE_MS)
+      {
+         m_UpdateNoticePhase = UpdateNotice_ScrollLeft;
+         m_UpdateNoticePhaseStart = now;
+      }
+      break;
+   }
+}
+
+void Menu::DrawUpdateNotice()
+{
+   if (m_UpdateNoticeText.empty())
+      return;
+
+   const float textHeight = sizeText / 1.2f;
+   const float innerWidth = sizeWidth - UPDATE_NOTICE_PADDING * 2.0f;
+
+   const float boxHeight = sizeText + 6.0f;
+   const float bodyTop = position.y + m_SizeBackground / 2.0f;
+   const float headerTop = bodyTop + sizeHeader - 16.0f;
+   const float centerY = headerTop + UPDATE_NOTICE_GAP + (boxHeight / 2.0f);
+
+   g_Renderer.Rectangle(
+      paf::vec2(position.x, centerY),
+      paf::vec2(sizeWidth, boxHeight),
+      paf::vec4(colorBackground.r, colorBackground.g, colorBackground.b,
+         m_OpacityBackground * 0.88f),
+      Renderer::Centered,
+      Renderer::Centered);
+
+   g_Renderer.Rectangle(
+      paf::vec2(position.x, centerY + (boxHeight / 2.0f) - 1.0f),
+      paf::vec2(sizeWidth, 1.5f),
+      paf::vec4(colorMenu.r, colorMenu.g, colorMenu.b, m_OpacityBackground * 0.90f),
+      Renderer::Centered,
+      Renderer::Centered);
+
+   g_Renderer.TextScrolling(
+      m_UpdateNoticeText,
+      paf::vec2(position.x - (sizeWidth / 2.0f) + UPDATE_NOTICE_PADDING, centerY),
+      paf::vec2(innerWidth, boxHeight),
+      textHeight,
+      m_UpdateNoticeOffset,
+      paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
+      Renderer::Left,
+      Renderer::Centered);
+}
+
 void Menu::DrawHeader()
 {
 	const float bodyTop = position.y + m_SizeBackground / 2.0f;
@@ -581,6 +829,46 @@ void Menu::DrawHeader()
 		paf::vec2(position.x - sizeWidth / 2 - m_SizeBackgroundSpace / 4.78, iconY),
 		sizeText * 1.60,
 		paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
+		Renderer::Left,
+		Renderer::Centered);
+}
+
+void Menu::DrawMemoryWarning()
+{
+	if (m_MemoryWarningLevel == MemoryWarningLevel::None)
+		return;
+
+	if ((m_MemoryWarningLevel == MemoryWarningLevel::Critical) &&
+		((GetTimeNow() / MEMORY_WARNING_FLASH_MS) % 2 != 0))
+	{
+		return;
+	}
+
+	const float headerCenterY = position.y + m_SizeBackground / 2.0f + sizeHeader / 2.0f - 16.0f;
+	const float iconY = headerCenterY + 7.70f;
+	const float fireX = position.x - sizeWidth / 2.0f - m_SizeBackgroundSpace / 4.78f;
+	const float markX = fireX + sizeText * 1.75f;
+	const float markWidth = sizeText * 0.20f;
+	const float stemHeight = sizeText * 0.75f;
+	const float dotHeight = sizeText * 0.28f;
+	const float gap = sizeText * 0.08f;
+	const float totalHeight = stemHeight + gap + dotHeight;
+	const float markBottom = iconY - totalHeight / 2.0f;
+	const float dotCenter = markBottom + dotHeight / 2.0f;
+	const float stemCenter = markBottom + dotHeight + gap + stemHeight / 2.0f;
+	const paf::vec4 color(1.0f, 1.0f, 0.0f, m_OpacityText);
+
+	g_Renderer.Rectangle(
+		paf::vec2(markX, stemCenter),
+		paf::vec2(markWidth, stemHeight),
+		color,
+		Renderer::Left,
+		Renderer::Centered);
+
+	g_Renderer.Rectangle(
+		paf::vec2(markX, dotCenter),
+		paf::vec2(markWidth, dotHeight),
+		color,
 		Renderer::Left,
 		Renderer::Centered);
 }
@@ -636,13 +924,15 @@ void Menu::DrawFooter()
 	}
 	else if (m_CurrentMenu == m_MainMenu)
 	{
-		instructions = T(g_Config.m_Settings.showSupportedGames
+		instructions = T(TEXT_FOOTER_ACTIONS);
+		instructions += L"\n";
+		instructions += T(g_Config.m_Settings.showSupportedGames
 			? TEXT_FOOTER_MAIN_HIDE
 			: TEXT_FOOTER_MAIN_SHOW);
 	}
 	else
 	{
-		instructions = T(TEXT_FOOTER_ACTIONS);
+		return;
 	}
 
 	g_Renderer.Text(
@@ -708,8 +998,15 @@ void Menu::DrawBusyOverlay()
         Renderer::Centered,
         Renderer::Centered);
 
+    TextId phase = TEXT_BUSY_APPLYING;
+
+    if (m_BusyReconnecting)
+        phase = TEXT_BUSY_RECONNECTING;
+    else if (m_BusyPatching)
+        phase = TEXT_BUSY_OPENSPY_PATCH;
+
     g_Renderer.TextOnTop(
-        m_BusyReconnecting ? T(TEXT_BUSY_RECONNECTING) : T(TEXT_BUSY_APPLYING),
+        T(phase),
         paf::vec2(position.x, position.y + 9.0f),
         sizeText / 1.15f,
         paf::vec4(colorText.r, colorText.g, colorText.b, m_OpacityText),
@@ -809,9 +1106,10 @@ void Menu::DrawMenuStringOption(const std::wstring& item)
     }
 }
 
-Menu& Menu::Option(const std::wstring& text)
+Menu& Menu::Option(const std::wstring& text, bool disabled)
 {
    m_PrintingOption++;
+   m_PrintingOptionDisabled = disabled;
    DrawMenuOption(text);
    return *this;
 }

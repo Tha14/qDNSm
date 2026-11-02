@@ -103,6 +103,16 @@ void InputUi::ConsumeResult()
 	m_Result = Result_None;
 }
 
+void InputUi::Cancel()
+{
+	if (m_Mode == Mode_None)
+		return;
+
+	m_Mode = Mode_None;
+	m_Result = Result_Cancelled;
+	m_HasResult = true;
+}
+
 void InputUi::AppendCharacter(char character)
 {
 	if (m_Text.size() >= static_cast<size_t>(MAX_TEXT_LENGTH))
@@ -428,8 +438,8 @@ void InputUi::BeginInfo(const std::wstring& title, const std::wstring& message,
  */
 void InputUi::DrawInfo()
 {
-	const float lineHeight = 28.0f;
-	const float paragraphGap = 12.0f;
+	const float lineHeight = 22.0f;
+	const float paragraphGap = 8.0f;
 
 	float y = m_BoxMaxY - 90.0f;
 
@@ -463,7 +473,7 @@ void InputUi::DrawInfo()
 			if (y < m_BoxMinY + 60.0f)
 				break;
 
-			g_Renderer.Text(line, paf::vec2(bodyX, y), 22.0f,
+			g_Renderer.Text(line, paf::vec2(bodyX, y), 18.0f,
 				paf::vec4(1.0f, 1.0f, 1.0f, 1.0f), bodyAlign, Renderer::Centered);
 		}
 
@@ -486,7 +496,7 @@ void InputUi::DrawInfo()
 	{
 		if (!m_CreditLabel.empty())
 		{
-			g_Renderer.Text(m_CreditLabel, paf::vec2(0.0f, m_BoxMinY + 118.0f), 20.0f,
+			g_Renderer.Text(m_CreditLabel, paf::vec2(0.0f, m_BoxMinY + 102.0f), 20.0f,
 				paf::vec4(0.65f, 0.65f, 0.70f, 1.0f), Renderer::Centered, Renderer::Centered);
 		}
 

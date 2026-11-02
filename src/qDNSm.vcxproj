@@ -177,9 +177,9 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
     <ClCompile Include="Core\CrtStubs.c" />
     <ClCompile Include="Core\InputUi.cpp" />
     <ClCompile Include="Core\Config.cpp" />
-    <ClCompile Include="Core\DnsList.cpp" />
     <ClCompile Include="Core\GameList.cpp" />
     <ClCompile Include="Core\GameListPanel.cpp" />
+    <ClCompile Include="Core\MemoryWarning.cpp" />
     <ClCompile Include="Core\Language.cpp" />
     <ClCompile Include="Core\LanguageCodec.cpp" />
     <ClCompile Include="Core\LanguageCompression.cpp" />
@@ -191,9 +191,13 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
     <ClCompile Include="Core\Renderer.cpp" />
     <ClCompile Include="Core\Menu\Base.cpp" />
     <ClCompile Include="Core\Menu\Submenus.cpp" />
+    <ClCompile Include="Core\OpenSpyPatch.cpp" />
+    <ClCompile Include="Core\OpenSpyPatchPlan.cpp" />
+    <ClCompile Include="Core\OpenSpySupportedTitles.cpp" />
     <ClCompile Include="Core\Helpers.cpp" />
     <ClCompile Include="Core\Hooks.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="Memory\AobScan.cpp" />
     <ClCompile Include="Memory\Detour.cpp" />
     <ClCompile Include="Memory\Memory.cpp" />
     <ClCompile Include="Memory\Pattern.cpp" />
@@ -204,14 +208,20 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\Config.hpp" />
-    <ClInclude Include="Core\DnsList.hpp" />
+    <ClInclude Include="Core\DefaultDnsServers.generated.hpp" />
     <ClInclude Include="Core\GameList.hpp" />
     <ClInclude Include="Core\GameListPanel.hpp" />
+    <ClInclude Include="Core\MemoryWarning.hpp" />
+    <ClInclude Include="Core\MemoryWarningPolicy.hpp" />
     <ClInclude Include="Core\Language.hpp" />
     <ClInclude Include="Core\LanguageCodec.hpp" />
     <ClInclude Include="Core\LanguageCompression.hpp" />
     <ClInclude Include="Core\LanguageIds.generated.hpp" />
     <ClInclude Include="Core\LanguageSystem.hpp" />
+    <ClInclude Include="Core\OpenSpyPatch.hpp" />
+    <ClInclude Include="Core\OpenSpyPatchPlan.hpp" />
+    <ClInclude Include="Core\OpenSpySupportedTitles.hpp" />
+    <ClInclude Include="Core\OpenSpySupportedTitles.generated.hpp" />
     <ClInclude Include="Core\Version.hpp" />
     <ClInclude Include="Core\Network.hpp" />
     <ClInclude Include="Core\NetUpdate.hpp" />
@@ -224,6 +234,7 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
     <ClInclude Include="Core\Menu\Submenus.hpp" />
     <ClInclude Include="Core\Helpers.hpp" />
     <ClInclude Include="Core\Hooks.hpp" />
+    <ClInclude Include="Memory\AobScan.hpp" />
     <ClInclude Include="Memory\Detour.hpp" />
     <ClInclude Include="Memory\Memory.hpp" />
     <ClInclude Include="Memory\Pattern.hpp" />

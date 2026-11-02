@@ -46,6 +46,8 @@ public:
     void Text(std::wstring const& text, paf::vec2 position, float height, paf::vec4 color, Align horizontalAlign = Left, Align verticalAlign = Top, float angle = 0.0, bool drawShadow = true, GlyphSet glyphSet = GlyphSet_Default);
     void RectangleOnTop(paf::vec2 position, paf::vec2 size, paf::vec4 color, Align horizontalAlign = Left, Align verticalAlign = Top);
     void TextOnTop(std::wstring const& text, paf::vec2 position, float height, paf::vec4 color, Align horizontalAlign = Left, Align verticalAlign = Top);
+    void TextScrolling(std::wstring const& text, paf::vec2 position, paf::vec2 size, float height, float offset, paf::vec4 color, Align horizontalAlign = Left, Align verticalAlign = Top, GlyphSet glyphSet = GlyphSet_Default);
+    float MeasureText(std::wstring const& text, float height, GlyphSet glyphSet = GlyphSet_Default);
 
 
 private:
@@ -61,6 +63,7 @@ private:
     paf::PhText* GetCurrentText();
     paf::PhText* GetCurrentTopText();
     paf::PhPlane* GetCurrentPlane();
+    paf::PhText* GetUpdateNoticeText();
 
     void TrimPool(int keepText, int keepPlane, int keepTopText);
     void ForgetWidgets();
@@ -97,6 +100,13 @@ private:
      * Comparing the pointer values is safe; dereferencing them is not.
      */
     paf::PhWidget* m_Parent{};
+
+    paf::PhText* m_UpdateNoticeTextWidget{};
+    std::wstring m_UpdateNoticeCachedText{};
+    paf::vec2 m_UpdateNoticeCachedSize{};
+    float m_UpdateNoticeCachedHeight{};
+    float m_UpdateNoticeCachedOffset{-1.0f};
+    int m_UpdateNoticeCachedGlyphSet{};
 };
 
 extern Renderer g_Renderer;

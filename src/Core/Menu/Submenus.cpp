@@ -5,6 +5,7 @@
 #include "../InputUi.hpp"
 #include "../GameListPanel.hpp"
 #include "../NetUpdate.hpp"
+#include "../OpenSpyPatch.hpp"
 #include "../Language.hpp"
 #include "../LanguageCodec.hpp"
 #include "../LanguageSystem.hpp"
@@ -78,8 +79,7 @@ void ApplyDnsServer(size_t index)
 
 		std::wstring message = FormatText(TEXT_NOTIFY_DNS_SET_MANUAL, displayWide);
 
-		vsh::ShowNotificationWithIcon(message.c_str(), vsh::NotifyIcon::BlueVerifiedCheckmark,
-			vsh::NotifySound::OK);
+		ShowSuccessNotification(message);
 		return;
 	}
 
@@ -96,7 +96,32 @@ void ApplyDnsServer(size_t index)
 
 static void Notify(const std::wstring& message, vsh::NotifySound sound)
 {
-	vsh::ShowNotificationWithIcon(message, vsh::NotifyIcon::BlueVerifiedCheckmark, sound);
+	if (sound == vsh::NotifySound::Error)
+	{
+		NotifyError(message);
+		return;
+	}
+
+	ShowSuccessNotification(message);
+}
+
+void ShowOpenSpyPatchResult(OpenSpyPatchOutcome outcome)
+{
+	switch (outcome)
+	{
+	case OpenSpyPatch_Success:
+		Notify(T(TEXT_NOTIFY_OPENSPY_SUCCESS), vsh::NotifySound::OK);
+		break;
+	case OpenSpyPatch_AlreadyPatched:
+		Notify(T(TEXT_NOTIFY_OPENSPY_ALREADY), vsh::NotifySound::OK);
+		break;
+	case OpenSpyPatch_GameExited:
+		NotifyError(T(TEXT_NOTIFY_OPENSPY_GAME_EXITED));
+		break;
+	default:
+		NotifyError(T(TEXT_NOTIFY_OPENSPY_FAILED));
+		break;
+	}
 }
 
 /* Which flow the UI is currently driving. */
@@ -316,8 +341,10 @@ void UpdateDnsFlow()
  * Prefix glyph for the utility entries. Kept as a named constant so it is a one-line
  * change if the codepoint is not what was intended.
  */
-#define ENTRY_PREFIX_ADD L"\uF8A6 "
+#define ENTRY_PREFIX_ADD L"\uF8A6  "
 #define ENTRY_PREFIX_OPTIONS L"\uF5B6 "
+#define ENTRY_PREFIX_OPENSPY L"\uF8B5 "
+#define ENTRY_PREFIX_INSTRUCTIONS L"\uF46A "
 
 /*
  * On styling the credit.
@@ -335,7 +362,7 @@ void UpdateDnsFlow()
  * nobody here can name.
  */
 
-static void BeginInstructions()
+static void BeginManualGuide()
 {
 	/* An info screen is not a flow and never was one. Clearing the flow state here means it cannot
 	 * be waiting on a step that this screen will never complete, whatever happened before it. */
@@ -345,9 +372,26 @@ static void BeginInstructions()
 	g_InputUi.BeginInfo(T(TEXT_HELP_TITLE), T(TEXT_HELP_BODY));
 }
 
+static void BeginOpenSpyGuide()
+{
+	/* Same as BeginManualGuide: not a flow. */
+	g_Flow = Flow_None;
+	g_FlowStep = 0;
+
+	g_InputUi.BeginInfo(T(TEXT_MENU_OPENSPY_PATCH), T(TEXT_MENU_OPENSPY_DESCRIPTION));
+}
+
+static void BeginHighMemoryGuide()
+{
+	g_Flow = Flow_None;
+	g_FlowStep = 0;
+
+	g_InputUi.BeginInfo(T(TEXT_MENU_HIGH_MEMORY_TITLE), T(TEXT_MENU_HIGH_MEMORY_DESCRIPTION));
+}
+
 static void BeginAbout()
 {
-	/* Same as BeginInstructions: not a flow. */
+	/* Same as BeginManualGuide: not a flow. */
 	g_Flow = Flow_None;
 	g_FlowStep = 0;
 
@@ -450,20 +494,18 @@ void OptionsSubmenu()
 	if (languageIndex != previousLanguage)
 		ApplyLanguage(languageIndex);
 
-	g_Menu.Option(T(TEXT_OPTIONS_UPDATE_DNS))
+	const bool updateDisabled =
+		vsh::GetCooperationMode() != vsh::CooperationMode::XMB;
+
+	g_Menu.Option(T(TEXT_OPTIONS_UPDATE_DNS), updateDisabled)
 		.RightText(IsNetUpdateBusy() ? T(TEXT_OPTIONS_UPDATING) : L"")
-		.Action([]
+		.Action([updateDisabled]
 	{
-		if (IsNetUpdateBusy())
+		if (updateDisabled || IsNetUpdateBusy())
 			return;
 
 		if (!StartNetUpdate())
 			NotifyError(T(TEXT_NOTIFY_UPDATE_START_FAILED));
-	});
-
-	g_Menu.Option(T(TEXT_OPTIONS_HOW_TO)).Action([]
-	{
-		BeginInstructions();
 	});
 
 	g_Menu.Option(T(TEXT_OPTIONS_ABOUT)).Action([]
@@ -477,12 +519,31 @@ void OptionsSubmenu()
 	});
 }
 
+void InstructionsSubmenu()
+{
+	g_Menu.Option(T(TEXT_MENU_OPENSPY_PATCH)).Action([]
+	{
+		BeginOpenSpyGuide();
+	});
+
+	g_Menu.Option(T(TEXT_OPTIONS_HOW_TO)).Action([]
+	{
+		BeginManualGuide();
+	});
+
+	g_Menu.Option(T(TEXT_MENU_HIGH_MEMORY)).Action([]
+	{
+		BeginHighMemoryGuide();
+	});
+}
+
 void MainSubmenu()
 {
 	if (g_InputUi.IsActive())
 		return;
 
 	int hoveredIndex = -1;
+	bool openSpyHovered = false;
 
 	for (size_t i = 0; i < g_Config.GetServerCount(); i++)
 	{
@@ -512,9 +573,30 @@ void MainSubmenu()
 		BeginAdd();
 	});
 
+	g_Menu.Option(std::wstring(ENTRY_PREFIX_OPENSPY) + T(TEXT_MENU_OPENSPY_PATCH))
+		.WhileHovered([&openSpyHovered]
+		{
+			openSpyHovered = true;
+		}).Action([]
+	{
+		const OpenSpyPatchStart start = StartOpenSpyPatch();
+
+		if (start == OpenSpyPatch_NoGame)
+			NotifyError(T(TEXT_NOTIFY_OPENSPY_NO_GAME));
+		else if (start == OpenSpyPatch_Unsupported)
+			NotifyError(T(TEXT_NOTIFY_OPENSPY_UNSUPPORTED));
+		else if (start == OpenSpyPatch_StartFailed)
+			NotifyError(T(TEXT_NOTIFY_OPENSPY_FAILED));
+	});
+
 	g_Menu.Option(std::wstring(ENTRY_PREFIX_OPTIONS) + T(TEXT_MENU_OPTIONS)).Submenu(OptionsSubmenu);
 
-	g_GameListPanel.SetHoveredIndex(hoveredIndex);
+	g_Menu.Option(std::wstring(ENTRY_PREFIX_INSTRUCTIONS) + T(TEXT_MENU_INSTRUCTIONS)).Submenu(InstructionsSubmenu);
+
+	if (openSpyHovered)
+		g_GameListPanel.SetOpenSpyHovered();
+	else
+		g_GameListPanel.SetHoveredIndex(hoveredIndex);
 	g_Menu.SetOverlay([]
 	{
 		g_GameListPanel.Draw();

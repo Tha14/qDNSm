@@ -5,7 +5,9 @@
 #include "GameListPanel.hpp"
 #include "Network.hpp"
 #include "NetUpdate.hpp"
+#include "OpenSpyPatch.hpp"
 #include "InputUi.hpp"
+#include <vsh/vshmain.hpp>
 #include <cell/pad/pad_codes.h>
 
 /*
@@ -20,13 +22,25 @@
 ImportExportDetour* pafFrameworkBeginHk;
 Detour* cellPadGetDataExtraInternalHk;
 
+static bool s_WasGameRunning = false;
+
 void pafFrameworkBeginHook(void* framework, float frameTime)
 {
     pafFrameworkBeginHk->GetOriginal<void>(framework, frameTime);
 
     g_Helpers.OnUpdate();
+
+    const bool gameRunning =
+        vsh::GetCooperationMode() != vsh::CooperationMode::XMB;
+
+    if (gameRunning && !s_WasGameRunning && g_Menu.IsOpened())
+        g_Menu.ForceClose();
+
+    s_WasGameRunning = gameRunning;
+
     g_Renderer.OnUpdate();
-    g_Menu.SetBusyState(IsDnsApplyBusy(), GetDnsApplyPhase() == DnsApply_Reconnecting);
+    g_Menu.SetBusyState(IsDnsApplyBusy() || IsOpenSpyPatchBusy(),
+        GetDnsApplyPhase() == DnsApply_Reconnecting, IsOpenSpyPatchBusy());
     g_GameListPanel.OnFrame(g_Menu.IsOpened(), g_Menu.IsMainMenu());
     g_Menu.OnUpdate();
 
@@ -37,6 +51,7 @@ void pafFrameworkBeginHook(void* framework, float frameTime)
      */
     UpdateDnsFlow();
     PollNetUpdate();
+    PollOpenSpyPatch();
 
     /*
      * No network calls here, deliberately.
@@ -56,20 +71,9 @@ int cellPadGetDataExtraInternalHook(void* r3, uint32_t portNum, uint32_t* device
 
     g_Input.SetInputData(data);
 
-    if (g_Menu.IsOpened() && !g_Helpers.m_GameRunning)
+    if (g_Menu.IsFullyOpen())
     {
-        /*
-         * Always mask while the menu is up, including while the input UI owns the screen - the XMB
-         * must not navigate its own focus behind the dialog. g_Input was filled from the untouched
-         * data above, so the UI still receives every press.
-         *
-         * This used to be `if (!g_InputUi.IsActive())`, which stopped masking exactly when it was
-         * most needed and let input through to the XMB.
-         *
-         * Not while a game is running. The XMB takes the menu's close animation with it when a
-         * game starts, so the menu never finishes closing and the mask would otherwise stay on
-         * for the rest of the session, and the game would get no buttons at all.
-         */
+        /* Mask only while fully visible; input was captured above and OnClose() clears it before fade-out. */
         data->button[CELL_PAD_BTN_OFFSET_DIGITAL1] &= ~(CELL_PAD_CTRL_LEFT | CELL_PAD_CTRL_DOWN | CELL_PAD_CTRL_RIGHT | CELL_PAD_CTRL_UP | CELL_PAD_CTRL_SELECT);
         data->button[CELL_PAD_BTN_OFFSET_DIGITAL2] &= ~(CELL_PAD_CTRL_CROSS | CELL_PAD_CTRL_CIRCLE | CELL_PAD_CTRL_SQUARE | CELL_PAD_CTRL_TRIANGLE | CELL_PAD_CTRL_L1 | CELL_PAD_CTRL_R1);
 

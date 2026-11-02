@@ -84,6 +84,8 @@ public:
 
 	void Draw();
 
+	void Cancel();
+
 	bool IsActive() const { return m_Mode != Mode_None; }
 
 	/* Set for one frame after a mode finishes, until consumed. */

@@ -17,6 +17,8 @@ struct ConfigSettings
 	bool showSupportedGames{};
 	std::string language{"auto"};
 	bool managedFormat{};
+	std::string onlineVersion;
+	std::string onlineUrl;
 };
 
 class Config

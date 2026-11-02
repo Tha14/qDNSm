@@ -3,12 +3,13 @@
 #include <stdint.h>
 
 /*
- * Shared by the main plugin and qDNSmNetLib for the update fetch.
+ * Shared by the main plugin and qDNSmNetLib for the update.
  *
  * The module fetches url/outputPath and, when url2 is non-empty,
  * url2/outputPath2 in one module instance, so the loader is not cycled between
- * the two files. The main plugin calls the module from its own worker thread,
- * so the menu never blocks.
+ * the two files. It then validates and applies both update files, including
+ * writing qDNSm.ini and qDNSm-server-games.ini. The main plugin calls the module
+ * from its own worker thread, so the menu never blocks.
  */
 struct NetProbeRequest
 {
@@ -36,14 +37,23 @@ struct NetProbeRequest
 	volatile int32_t httpStatus2;
 	volatile uint32_t bytes2;
 
+	volatile uint32_t dnsOk;
+	volatile uint32_t dnsChanged;
+	volatile uint32_t onlineVersionChanged;
+	volatile uint32_t gamesOk;
+	volatile uint32_t gamesChanged;
+	volatile uint32_t gamesInvalid;
+
 	char url[256];
 	char outputPath[128];
 	char url2[256];
 	char outputPath2[128];
+	char configPath[128];
+	char gamePath[128];
 };
 
 static const uint32_t kNetProbeMagic = 0x51444E50;         /* 'QDNP' */
-static const uint32_t kNetProbeVersion = 3;
+static const uint32_t kNetProbeVersion = 4;
 static const uint32_t kNetProbeModuleMagic = 0x4E45544C;   /* 'NETL' */
 
 static const uint32_t kNetProbeJobUpdate = 0;

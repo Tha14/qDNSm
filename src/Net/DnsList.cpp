@@ -1,11 +1,9 @@
 #include "DnsList.hpp"
 
-#ifndef QDNSM_HOST_TEST
-#include "../Utils/FileSystem.hpp"
-#endif
+#include "../Core/Version.hpp"
 
-static const size_t MAX_DNS_FILE = 64 * 1024;
 static const size_t MAX_DNS_ENTRIES = 256;
+static const size_t MAX_ONLINE_URL = 256;
 
 struct ParsedDnsEntry
 {
@@ -137,12 +135,18 @@ static bool WideEqualsNoCase(const std::wstring& left, const std::wstring& right
 }
 
 bool ParseDnsList(const char* data, size_t size, std::vector<RemoteDnsEntry>& out,
-	size_t* errorLine)
+	size_t* errorLine, std::string* onlineVersion, std::string* onlineUrl)
 {
 	out.clear();
 
 	if (errorLine != nullptr)
 		*errorLine = 0;
+
+	if (onlineVersion != nullptr)
+		onlineVersion->clear();
+
+	if (onlineUrl != nullptr)
+		onlineUrl->clear();
 
 	auto fail = [&](size_t line) -> bool
 	{
@@ -194,7 +198,52 @@ bool ParseDnsList(const char* data, size_t size, std::vector<RemoteDnsEntry>& ou
 			continue;
 
 		if ((line[0] == '#') || (line[0] == ';'))
+		{
+			if ((onlineVersion != nullptr) || (onlineUrl != nullptr))
+			{
+				const char* comment = line + 1;
+				size_t commentLength = lineLength - 1;
+				Trim(comment, commentLength);
+
+				size_t separator = commentLength;
+				for (size_t i = 0; i < commentLength; i++)
+				{
+					if (comment[i] == '=')
+					{
+						separator = i;
+						break;
+					}
+				}
+
+				if (separator < commentLength)
+				{
+					const char* key = comment;
+					size_t keyLength = separator;
+					const char* value = comment + separator + 1;
+					size_t valueLength = commentLength - separator - 1;
+
+					Trim(key, keyLength);
+					Trim(value, valueLength);
+
+					if ((onlineVersion != nullptr) &&
+						RangeEquals(key, keyLength, "OnlineVersion"))
+					{
+						std::string candidate(value, valueLength);
+						if (IsValidVersion(candidate))
+							*onlineVersion = candidate;
+					}
+					else if ((onlineUrl != nullptr) &&
+						RangeEquals(key, keyLength, "OnlineUrl") &&
+						(valueLength > 0) && (valueLength <= MAX_ONLINE_URL) &&
+						IsPrintable(value, valueLength))
+					{
+						*onlineUrl = std::string(value, valueLength);
+					}
+				}
+			}
+
 			continue;
+		}
 
 		if (line[0] == '[')
 		{
@@ -316,29 +365,6 @@ bool ParseDnsList(const char* data, size_t size, std::vector<RemoteDnsEntry>& ou
 	return true;
 }
 
-DnsListLoadResult LoadDnsList(const std::string& path, std::vector<RemoteDnsEntry>& out)
-{
-	out.clear();
-
-#ifndef QDNSM_HOST_TEST
-	if (!FileExist(path))
-		return DnsList_Missing;
-
-	std::string content;
-
-	if (!ReadFileText(path, content, MAX_DNS_FILE))
-		return DnsList_Unreadable;
-
-	if (!ParseDnsList(content.empty() ? nullptr : content.data(), content.size(), out))
-		return DnsList_Invalid;
-
-	return DnsList_Loaded;
-#else
-	(void)path;
-	return DnsList_Missing;
-#endif
-}
-
 bool MergeManagedDnsList(const std::vector<RemoteDnsEntry>& remote,
 	const std::vector<DnsServerEntry>& current, std::vector<DnsServerEntry>& out,
 	std::string* error)
@@ -377,7 +403,25 @@ bool MergeManagedDnsList(const std::vector<RemoteDnsEntry>& remote,
 	{
 		if (!current[i].managed)
 		{
-			merged.push_back(current[i]);
+			bool exactMatch = false;
+			bool sameName = false;
+
+			for (size_t j = 0; j < remote.size(); j++)
+			{
+				if ((current[i].primary == remote[j].primary) &&
+					WideEqualsNoCase(current[i].name, remote[j].name))
+				{
+					exactMatch = true;
+					break;
+				}
+
+				if (WideEqualsNoCase(current[i].name, remote[j].name))
+					sameName = true;
+			}
+
+			if (exactMatch || !sameName)
+				merged.push_back(current[i]);
+
 			continue;
 		}
 
