@@ -235,6 +235,46 @@ static void TestGameListSection()
 		"missing single section is empty");
 }
 
+static void TestGameListSectionNames()
+{
+	const char* text =
+		"# header\n"
+		"[1.1.1.1]\n"
+		"Aliases=Shared | Other\n"
+		"Game=Alpha\n"
+		"# tags: requires-patch\n"
+		"# note: ignored by the supported-games panel\n"
+		"Game=Beta\n"
+		"[2.2.2.2]\n"
+		"Aliases=Other Project\n"
+		"Game=Gamma\n";
+
+	std::vector<std::wstring> games;
+	std::vector<std::wstring> aliases;
+	bool found = false;
+
+	Check(ParseGameListSectionNames(text, std::char_traits<char>::length(text), "1.1.1.1",
+		games, aliases, found), "single section names parse");
+	Check(found, "single section names found");
+	Check((games.size() == 2) && (games[0] == L"Alpha") && (games[1] == L"Beta"),
+		"single section names skip comments and metadata");
+	Check((aliases.size() == 2) && (aliases[0] == L"Shared") && (aliases[1] == L"Other"),
+		"single section names keep aliases");
+
+	Check(ParseGameListSectionNames(text, std::char_traits<char>::length(text), "3.3.3.3",
+		games, aliases, found), "missing section names parse");
+	Check(!found && games.empty() && aliases.empty(),
+		"missing section names are cleared");
+
+	const char* invalid =
+		"[1.1.1.1]\n"
+		"Unknown=Value\n";
+
+	Check(!ParseGameListSectionNames(invalid, std::char_traits<char>::length(invalid),
+		"1.1.1.1", games, aliases, found), "unknown section key is rejected");
+	Check(games.empty() && aliases.empty(), "rejected section names leave no output");
+}
+
 static void TestDnsList()
 {
 	std::vector<RemoteDnsEntry> entries;
@@ -994,6 +1034,7 @@ int main()
 {
 	TestGameList();
 	TestGameListSection();
+	TestGameListSectionNames();
 	TestGameDirectorySearch();
 	TestDnsList();
 	TestVersion();

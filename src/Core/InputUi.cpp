@@ -47,6 +47,9 @@ static const float DIRECTORY_TAG_HEIGHT = 18.0f;
 static const float DIRECTORY_TAG_PADDING = 6.0f;
 static const float DIRECTORY_TAG_GAP = 6.0f;
 static const float DIRECTORY_TAG_TEXT_HEIGHT = 11.0f;
+static float s_PatchTagWidth = 0.0f;
+static float s_WhitelistTagWidth = 0.0f;
+static float s_DiscordTagWidth = 0.0f;
 static const size_t DIRECTORY_NOTE_WIDTH = 88;
 static const size_t DIRECTORY_NOTE_MAX_LINES = 5;
 static const float DIALOG_BORDER_WIDTH = 2.0f;
@@ -298,16 +301,21 @@ static std::vector<std::wstring> WrapDirectoryText(const std::wstring& text, siz
 	return lines;
 }
 
-static float DirectoryTagWidth(const std::wstring& label)
+static float DirectoryTagWidth(const std::wstring& label, float& cachedWidth)
 {
-	float width = g_Renderer.MeasureText(label, DIRECTORY_TAG_TEXT_HEIGHT);
+	if (cachedWidth > 0.0f)
+		return cachedWidth;
+
 	const float estimated = static_cast<float>(label.size()) *
 		DIRECTORY_TAG_TEXT_HEIGHT * 0.52f;
+	const float measured = g_Renderer.MeasureText(label, DIRECTORY_TAG_TEXT_HEIGHT);
 
-	if (width < estimated)
-		width = estimated;
+	if (measured <= 0.0f)
+		return estimated + (DIRECTORY_TAG_PADDING * 2.0f);
 
-	return width + (DIRECTORY_TAG_PADDING * 2.0f);
+	cachedWidth = ((measured < estimated) ? estimated : measured) +
+		(DIRECTORY_TAG_PADDING * 2.0f);
+	return cachedWidth;
 }
 
 static void DrawDirectoryTag(const std::wstring& label, float width, float x, float centerY,
@@ -1266,9 +1274,9 @@ void InputUi::DrawDirectoryList()
 		patchLabel = kDirectoryTagPatch;
 		whitelistLabel = kDirectoryTagWhitelist;
 		discordLabel = kDirectoryTagDiscord;
-		patchWidth = DirectoryTagWidth(patchLabel);
-		whitelistWidth = DirectoryTagWidth(whitelistLabel);
-		discordWidth = DirectoryTagWidth(discordLabel);
+		patchWidth = DirectoryTagWidth(patchLabel, s_PatchTagWidth);
+		whitelistWidth = DirectoryTagWidth(whitelistLabel, s_WhitelistTagWidth);
+		discordWidth = DirectoryTagWidth(discordLabel, s_DiscordTagWidth);
 	}
 
 	const float tagRight = m_BoxLeft + m_BoxWidth - 44.0f;
@@ -1332,9 +1340,9 @@ void InputUi::DrawDirectoryDetail()
 		const std::wstring patchLabel = kDirectoryTagPatch;
 		const std::wstring whitelistLabel = kDirectoryTagWhitelist;
 		const std::wstring discordLabel = kDirectoryTagDiscord;
-		const float patchWidth = DirectoryTagWidth(patchLabel);
-		const float whitelistWidth = DirectoryTagWidth(whitelistLabel);
-		const float discordWidth = DirectoryTagWidth(discordLabel);
+		const float patchWidth = DirectoryTagWidth(patchLabel, s_PatchTagWidth);
+		const float whitelistWidth = DirectoryTagWidth(whitelistLabel, s_WhitelistTagWidth);
+		const float discordWidth = DirectoryTagWidth(discordLabel, s_DiscordTagWidth);
 
 		DrawDirectoryTags(row.tags, m_BoxLeft + 30.0f, m_BoxMaxY - 60.0f,
 			patchLabel, patchWidth, whitelistLabel, whitelistWidth,

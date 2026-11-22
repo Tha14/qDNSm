@@ -47,9 +47,13 @@ enum GameListLoadResult
  */
 bool ParseGameList(const char* data, size_t size, std::vector<GameListSection>& out);
 
-/* Load one section for the supported-games panel without building the whole catalogue. */
+/* Parse one complete section, including tags and notes. */
 bool ParseGameListSection(const char* data, size_t size, const std::string& key,
 	GameListSection& out, bool& found);
+
+/* Load only the game names and aliases for the supported-games panel. */
+bool ParseGameListSectionNames(const char* data, size_t size, const std::string& key,
+	std::vector<std::wstring>& games, std::vector<std::wstring>& aliases, bool& found);
 
 /* Repository-level validation: non-empty, no alias-only sections, no OpenSpy aliases. */
 bool ValidateGameList(const std::vector<GameListSection>& sections);
@@ -57,6 +61,8 @@ bool ValidateGameList(const std::vector<GameListSection>& sections);
 GameListLoadResult LoadGameList(const std::string& path, std::vector<GameListSection>& out);
 GameListLoadResult LoadGameListSection(const std::string& path, const std::string& key,
 	GameListSection& out);
+GameListLoadResult LoadGameListSectionNames(const std::string& path, const std::string& key,
+	std::vector<std::wstring>& games, std::vector<std::wstring>& aliases, bool& found);
 
 const GameListSection* FindGameListSection(const std::vector<GameListSection>& sections,
 	const std::string& key);

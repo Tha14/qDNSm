@@ -599,6 +599,179 @@ bool ParseGameListSection(const char* data, size_t size, const std::string& key,
 	return true;
 }
 
+bool ParseGameListSectionNames(const char* data, size_t size, const std::string& key,
+	std::vector<std::wstring>& games, std::vector<std::wstring>& aliases, bool& found)
+{
+	games.clear();
+	aliases.clear();
+	found = false;
+
+	if ((data == nullptr) && (size != 0))
+		return false;
+
+	if ((size >= 3) &&
+		(static_cast<unsigned char>(data[0]) == 0xEF) &&
+		(static_cast<unsigned char>(data[1]) == 0xBB) &&
+		(static_cast<unsigned char>(data[2]) == 0xBF))
+	{
+		data += 3;
+		size -= 3;
+	}
+
+	std::vector<std::wstring> parsedGames;
+	std::vector<std::wstring> parsedAliases;
+	bool inTarget = false;
+	bool aliasSeen = false;
+	size_t cursor = 0;
+
+	while (cursor < size)
+	{
+		size_t lineEnd = cursor;
+
+		while ((lineEnd < size) && (data[lineEnd] != '\n'))
+			lineEnd++;
+
+		const char* line = data + cursor;
+		size_t lineLength = lineEnd - cursor;
+
+		if ((lineLength > 0) && (line[lineLength - 1] == '\r'))
+			lineLength--;
+
+		cursor = lineEnd + 1;
+
+		Trim(line, lineLength);
+
+		if (lineLength == 0)
+			continue;
+
+		if ((line[0] == '#') || (line[0] == ';'))
+			continue;
+
+		if (line[0] == '[')
+		{
+			if (line[lineLength - 1] != ']')
+				return false;
+
+			const char* section = line + 1;
+			size_t sectionLength = lineLength - 2;
+
+			Trim(section, sectionLength);
+
+			if (!IsValidSectionKey(section, sectionLength))
+				return false;
+
+			std::string sectionKey(section, sectionLength);
+
+			if (sectionKey == key)
+			{
+				if (found)
+					return false;
+
+				found = true;
+				inTarget = true;
+				aliasSeen = false;
+			}
+			else
+				inTarget = false;
+
+			continue;
+		}
+
+		if (!inTarget)
+			continue;
+
+		size_t separator = lineLength;
+
+		for (size_t i = 0; i < lineLength; i++)
+		{
+			if (line[i] == '=')
+			{
+				separator = i;
+				break;
+			}
+		}
+
+		if (separator == lineLength)
+			return false;
+
+		const char* name = line;
+		size_t nameLength = separator;
+
+		const char* value = line + separator + 1;
+		size_t valueLength = lineLength - separator - 1;
+
+		Trim(name, nameLength);
+		Trim(value, valueLength);
+
+		if (nameLength == 0)
+			return false;
+
+		if (RangeEquals(name, nameLength, "Game"))
+		{
+			if ((valueLength == 0) || (valueLength > MAX_GAME_LENGTH) ||
+				!IsPrintable(value, valueLength))
+			{
+				return false;
+			}
+
+			if (parsedGames.size() >= MAX_GAMES_PER_SECTION)
+				return false;
+
+			parsedGames.push_back(Widen(value, valueLength));
+			continue;
+		}
+
+		if (RangeEquals(name, nameLength, "Aliases"))
+		{
+			if (aliasSeen)
+				return false;
+
+			aliasSeen = true;
+
+			std::vector<std::wstring> lineAliases;
+			size_t start = 0;
+
+			for (size_t i = 0; i <= valueLength; i++)
+			{
+				if ((i != valueLength) && (value[i] != '|'))
+					continue;
+
+				const char* alias = value + start;
+				size_t aliasLength = i - start;
+
+				Trim(alias, aliasLength);
+
+				if ((aliasLength == 0) || (aliasLength > MAX_ALIAS_LENGTH) ||
+					!IsPrintable(alias, aliasLength))
+				{
+					return false;
+				}
+
+				lineAliases.push_back(Widen(alias, aliasLength));
+				start = i + 1;
+			}
+
+			if ((lineAliases.size() > MAX_ALIASES) ||
+				((parsedAliases.size() + lineAliases.size()) > MAX_ALIASES))
+			{
+				return false;
+			}
+
+			for (size_t i = 0; i < lineAliases.size(); i++)
+				parsedAliases.push_back(lineAliases[i]);
+
+			continue;
+		}
+
+		return false;
+	}
+
+	games.swap(parsedGames);
+	aliases.swap(parsedAliases);
+	return true;
+}
+
+
 bool ValidateGameList(const std::vector<GameListSection>& sections)
 {
 	if (sections.empty())
@@ -670,6 +843,38 @@ GameListLoadResult LoadGameListSection(const std::string& path, const std::strin
 
 	if (!found)
 		out = GameListSection{};
+
+	return GameList_Loaded;
+}
+
+GameListLoadResult LoadGameListSectionNames(const std::string& path, const std::string& key,
+	std::vector<std::wstring>& games, std::vector<std::wstring>& aliases, bool& found)
+{
+	games.clear();
+	aliases.clear();
+	found = false;
+
+	if (!FileExist(path))
+		return GameList_Missing;
+
+	std::string content;
+
+	if (!ReadFileText(path, content, MAX_GAME_FILE))
+		return GameList_Unreadable;
+
+	if (!ParseGameListSectionNames(content.empty() ? nullptr : content.data(), content.size(),
+		key, games, aliases, found))
+	{
+		games.clear();
+		aliases.clear();
+		return GameList_Invalid;
+	}
+
+	if (!found)
+	{
+		games.clear();
+		aliases.clear();
+	}
 
 	return GameList_Loaded;
 }
