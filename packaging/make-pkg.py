@@ -42,8 +42,10 @@ Usage
 By default the current build outputs are copied into the staging tree first:
 
     bin/Release-PS3/qDNSm.sprx              -> <staging-dir>/USRDIR/qDNSm.sprx
-    bin/Release-PS3/qDNSmNetLib.sprx        -> <staging-dir>/USRDIR/qDNSmNetLib.sprx
+    bin/Release-PS3/qDNSmNetLib.sprx        -> <staging-dir>/USRDIR/qDNSm_modules/qDNSmNetLib.sprx
+    bin/Release-PS3/qDNSmOpenSpy.sprx       -> <staging-dir>/USRDIR/qDNSm_modules/qDNSmOpenSpy.sprx
     data/qDNSm-server-games.ini             -> <staging-dir>/USRDIR/qDNSm-server-games.ini
+    data/lang/*.ini (except en.ini)         -> <staging-dir>/USRDIR/qDNSm_lang/*.ini
     bin/Release-PS3/installer/EBOOT.BIN     -> <staging-dir>/USRDIR/EBOOT.BIN
 
 This is what the Linux side uses to package without rebuilding. Pass
@@ -117,7 +119,11 @@ def _stage_compiled(staging_dir):
     usrdir = os.path.join(staging_dir, 'USRDIR')
     sprx = os.path.join(BUILD_DIR, 'qDNSm.sprx')
     netlib = os.path.join(BUILD_DIR, 'qDNSmNetLib.sprx')
+    openspy = os.path.join(BUILD_DIR, 'qDNSmOpenSpy.sprx')
     games = os.path.join(ROOT, 'data', 'qDNSm-server-games.ini')
+    modulesdst = os.path.join(usrdir, 'qDNSm_modules')
+    langdir = os.path.join(ROOT, 'data', 'lang')
+    langdst = os.path.join(usrdir, 'qDNSm_lang')
     eboot = os.path.join(BUILD_DIR, 'installer', 'EBOOT.BIN')
 
     if not os.path.isfile(eboot):
@@ -128,10 +134,34 @@ def _stage_compiled(staging_dir):
 
     sources = [
         (sprx, os.path.join(usrdir, 'qDNSm.sprx')),
-        (netlib, os.path.join(usrdir, 'qDNSmNetLib.sprx')),
+        (netlib, os.path.join(modulesdst, 'qDNSmNetLib.sprx')),
+        (openspy, os.path.join(modulesdst, 'qDNSmOpenSpy.sprx')),
         (games, os.path.join(usrdir, 'qDNSm-server-games.ini')),
         (eboot, os.path.join(usrdir, 'EBOOT.BIN')),
     ]
+
+    if not os.path.isdir(langdir):
+        sys.stderr.write('[make-pkg] cannot stage languages: %s is missing\n'
+                         % langdir)
+        return False
+
+    language_files = []
+    for name in sorted(os.listdir(langdir)):
+        if (name == 'en.ini') or not name.endswith('.ini'):
+            continue
+
+        source = os.path.join(langdir, name)
+        if not os.path.isfile(source):
+            continue
+
+        language_files.append((source, os.path.join(langdst, name)))
+
+    if not language_files:
+        sys.stderr.write('[make-pkg] cannot stage languages: no catalogs found in %s\n'
+                         % langdir)
+        return False
+
+    sources.extend(language_files)
 
     for src, _ in sources:
         if not os.path.isfile(src):
@@ -140,6 +170,16 @@ def _stage_compiled(staging_dir):
             return False
 
     os.makedirs(usrdir, exist_ok=True)
+    if os.path.isdir(modulesdst):
+        shutil.rmtree(modulesdst)
+    os.makedirs(modulesdst, exist_ok=True)
+    os.makedirs(langdst, exist_ok=True)
+
+    for legacy in ('qDNSmNetLib.sprx', 'qDNSmOpenSpy.sprx'):
+        legacy_path = os.path.join(usrdir, legacy)
+        if os.path.isfile(legacy_path):
+            os.remove(legacy_path)
+
     for src, dst in sources:
         shutil.copy2(src, dst)
         sys.stderr.write('[make-pkg] staged %s <- %s\n'

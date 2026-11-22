@@ -86,6 +86,9 @@ namespace InstFs
     /*! True if the file was removed, or was already absent. */
     bool DeleteFile(const Small::Str& path);
 
+    /*! True if the directory was removed, or was already absent. */
+    bool RemoveDirectory(const Small::Str& path);
+
     /*! Create an empty file only if it does not already exist.
      *
      *  An existing file is left byte for byte untouched, whether it is empty

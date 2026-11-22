@@ -7,8 +7,10 @@ rem
 rem  Takes the binaries already on disk and puts them in a PKG:
 rem
 rem    bin\Release-PS3\qDNSm.sprx            ->  USRDIR/qDNSm.sprx
-rem    bin\Release-PS3\qDNSmNetLib.sprx      ->  USRDIR/qDNSmNetLib.sprx
+rem    bin\Release-PS3\qDNSmNetLib.sprx      ->  USRDIR/qDNSm_modules/qDNSmNetLib.sprx
+rem    bin\Release-PS3\qDNSmOpenSpy.sprx     ->  USRDIR/qDNSm_modules/qDNSmOpenSpy.sprx
 rem    data\qDNSm-server-games.ini           ->  USRDIR/qDNSm-server-games.ini
+rem    data\lang\*.ini                       ->  USRDIR/qDNSm_lang/*.ini
 rem    bin\Release-PS3\installer\EBOOT.BIN    ->  USRDIR/EBOOT.BIN
 rem    packaging\assets\ICON0.PNG            ->  ICON0.PNG
 rem    packaging\assets\PARAM.SFO            ->  PARAM.SFO
@@ -27,7 +29,9 @@ if "%ROOT:~-1%"=="\" set "ROOT=%ROOT:~0,-1%"
 
 set "SPRX=%ROOT%\bin\Release-PS3\qDNSm.sprx"
 set "NETLIB=%ROOT%\bin\Release-PS3\qDNSmNetLib.sprx"
+set "OPENSPY=%ROOT%\bin\Release-PS3\qDNSmOpenSpy.sprx"
 set "GAMES=%ROOT%\data\qDNSm-server-games.ini"
+set "LANGDIR=%ROOT%\data\lang"
 set "EBOOT=%ROOT%\bin\Release-PS3\installer\EBOOT.BIN"
 set "ASSETS=%ROOT%\packaging\assets"
 set "MAKEPKG=%ROOT%\packaging\make-pkg.py"
@@ -49,7 +53,9 @@ where python >nul 2>&1 || (
 )
 if not exist "%SPRX%"   ( echo ERROR: missing %SPRX% & echo        Build the plugin first.   & goto :fail )
 if not exist "%NETLIB%" ( echo ERROR: missing %NETLIB% & echo        Build the network module first. & goto :fail )
+if not exist "%OPENSPY%" ( echo ERROR: missing %OPENSPY% & echo        Build the OpenSpy module first. & goto :fail )
 if not exist "%GAMES%"  ( echo ERROR: missing %GAMES% & goto :fail )
+if not exist "%LANGDIR%" ( echo ERROR: missing %LANGDIR% & goto :fail )
 if not exist "%EBOOT%"  ( echo ERROR: missing %EBOOT% & echo        Build the installer EBOOT first. & goto :fail )
 if not exist "%ASSETS%\ICON0.PNG" ( echo ERROR: missing %ASSETS%\ICON0.PNG & goto :fail )
 if not exist "%ASSETS%\PARAM.SFO" ( echo ERROR: missing %ASSETS%\PARAM.SFO & goto :fail )
@@ -71,8 +77,11 @@ echo   qDNSm.sprx     !SPRX:~%ROOT%!
 for %%A in ("%SPRX%") do echo                   %%~zA bytes
 echo   qDNSmNetLib.sprx !NETLIB:~%ROOT%!
 for %%A in ("%NETLIB%") do echo                   %%~zA bytes
+echo   qDNSmOpenSpy.sprx !OPENSPY:~%ROOT%!
+for %%A in ("%OPENSPY%") do echo                   %%~zA bytes
 echo   games list     !GAMES:~%ROOT%!
 for %%A in ("%GAMES%") do echo                   %%~zA bytes
+echo   language dir   !LANGDIR:~%ROOT%!
 echo   EBOOT.BIN      !EBOOT:~%ROOT%!
 for %%A in ("%EBOOT%") do echo                   %%~zA bytes
 echo   TITLE_ID       %APPID%
@@ -81,9 +90,18 @@ echo.
 rem --- stage -----------------------------------------------------------------
 if exist "%STAGE%" rmdir /s /q "%STAGE%"
 mkdir "%STAGE%\USRDIR" >nul 2>&1
+mkdir "%STAGE%\USRDIR\qDNSm_modules" >nul 2>&1
 copy /y "%SPRX%"  "%STAGE%\USRDIR\qDNSm.sprx" >nul || goto :copyfail
-copy /y "%NETLIB%" "%STAGE%\USRDIR\qDNSmNetLib.sprx" >nul || goto :copyfail
+copy /y "%NETLIB%" "%STAGE%\USRDIR\qDNSm_modules\qDNSmNetLib.sprx" >nul || goto :copyfail
+copy /y "%OPENSPY%" "%STAGE%\USRDIR\qDNSm_modules\qDNSmOpenSpy.sprx" >nul || goto :copyfail
 copy /y "%GAMES%" "%STAGE%\USRDIR\qDNSm-server-games.ini" >nul || goto :copyfail
+mkdir "%STAGE%\USRDIR\qDNSm_lang" >nul 2>&1
+set "COPYFAIL="
+for %%F in ("%LANGDIR%\*.ini") do if /I not "%%~nxF"=="en.ini" (
+    copy /y "%%F" "%STAGE%\USRDIR\qDNSm_lang\%%~nxF" >nul || set "COPYFAIL=1"
+)
+if defined COPYFAIL goto :copyfail
+if not exist "%STAGE%\USRDIR\qDNSm_lang\*.ini" goto :copyfail
 copy /y "%EBOOT%" "%STAGE%\USRDIR\EBOOT.BIN"  >nul || goto :copyfail
 copy /y "%ASSETS%\ICON0.PNG" "%STAGE%\ICON0.PNG" >nul || goto :copyfail
 copy /y "%ASSETS%\PARAM.SFO" "%STAGE%\PARAM.SFO" >nul || goto :copyfail

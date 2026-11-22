@@ -3,9 +3,14 @@
 Source for the qDNSm installer EBOOT and its PKG. Self-contained: everything needed
 to build is either here or in `vendor/PSL1GHT`.
 
-The installer installs `qDNSm.sprx`, `qDNSmNetLib.sprx` and
-`qDNSm-server-games.ini` into `/dev_hdd0/plugins/` and registers the plugin at
-the top of `/dev_hdd0/boot_plugins.txt`, with an option to uninstall or update.
+The installer installs `qDNSm.sprx` and `qDNSm-server-games.ini` into
+`/dev_hdd0/plugins/`, `qDNSmNetLib.sprx` and `qDNSmOpenSpy.sprx` into
+`/dev_hdd0/plugins/qDNSm_modules/`, the non-English catalogs into
+`/dev_hdd0/plugins/qDNSm_lang/`, and registers the plugin at the top of
+`/dev_hdd0/boot_plugins.txt`, with an option to uninstall or update. Install
+removes legacy loose module copies left directly under `/dev_hdd0/plugins/`.
+Uninstall removes the module and language files and each directory when it is
+empty.
 
 ## Boot order
 
@@ -40,6 +45,7 @@ sh installer_src/tests/run-tests.sh
 | `Makefile` | build, and the `pkg` target |
 | `Installer.cpp` | the flow: prompt, install/uninstall, report, reboot |
 | `InstallerFs.cpp/.hpp` | file operations over sysFs, with staged writes |
+| `LanguageFiles.generated.hpp` | generated list of non-English catalogs copied to `qDNSm_lang/` |
 | `BootPlugins.cpp/.hpp` | reading and editing `boot_plugins.txt`; install and uninstall both strip blank lines and the trailing newline, leaving the final line bare, install always puts the qDNSm entry first, and uninstall leaves the file untouched when nothing of ours is in it |
 | `Dialog.cpp/.hpp` | RSX bring-up and the SysUtil dialogs |
 | `Small.hpp` | a small string/buffer type — see the note in the file |
@@ -59,8 +65,10 @@ load, because `strip` and `sprx_tool` are part of it. **Do not call
 `make_self_npdrm` directly.**
 
 The payloads are copied from `../bin/Release-PS3/qDNSm.sprx`,
-`../bin/Release-PS3/qDNSmNetLib.sprx` and `../data/qDNSm-server-games.ini`, so build
-the plugin and its network module first — they are separate SNC/Visual Studio
+`../bin/Release-PS3/qDNSmNetLib.sprx`, `../bin/Release-PS3/qDNSmOpenSpy.sprx`,
+`../data/qDNSm-server-games.ini` and the non-English files in `../data/lang/`;
+the two helper modules are staged under `USRDIR/qDNSm_modules/`. Build the
+plugin and its helper modules first — they are separate SNC/Visual Studio
 projects (`qDNSm.sln`).
 
 `APPID` and `CONTENTID` are set in the `Makefile` and must agree with each other and

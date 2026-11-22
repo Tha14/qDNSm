@@ -47,9 +47,11 @@ Works on **CFW** and **PS3HEN**, on CEX, PEX, D-PEX and DEX-mode consoles.
 [releases page](https://github.com/Tha14/qDNSm/releases). Install it like any other
 package, launch **qDNSm installer** from the XMB, and it will:
 
-- copy `qDNSm.sprx` to `/dev_hdd0/plugins/qDNSm.sprx`
-- add it to the **top** of `/dev_hdd0/boot_plugins.txt`, ahead of webMAN MOD
-- offer to uninstall later, which removes both again
+- copy `qDNSm.sprx` to `/dev_hdd0/plugins/`
+- copy `qDNSmNetLib.sprx` and `qDNSmOpenSpy.sprx` to `/dev_hdd0/plugins/qDNSm_modules/`
+- copy the language catalogs to `/dev_hdd0/plugins/qDNSm_lang/`
+- add `qDNSm.sprx` to the **top** of `/dev_hdd0/boot_plugins.txt`, ahead of webMAN MOD
+- offer to uninstall later, which removes them again
 - offer to reboot when it's done
 
 Pick **Yes** to install or **No** to uninstall, then let it reboot. Once it has
@@ -57,7 +59,7 @@ run you can delete the installer itself — nothing else depends on it.
 
 ### Manually
 
-qDNSm is loaded as a boot plugin. Take `qDNSm.sprx` and `qDNSmNetLib.sprx` from the [releases page](https://github.com/Tha14/qDNSm/releases) and put both in:
+qDNSm is loaded as a boot plugin. Take `qDNSm.sprx`, the `qDNSm_modules` folder (with `qDNSmNetLib.sprx` and `qDNSmOpenSpy.sprx`) and the `qDNSm_lang` folder from the [releases page](https://github.com/Tha14/qDNSm/releases) and put them in
 `/dev_hdd0/plugins/`, then point `/dev_hdd0/boot_plugins.txt` at `qDNSm.sprx`:
 
 ```
@@ -80,7 +82,9 @@ qDNSm is loaded as a boot plugin. Take `qDNSm.sprx` and `qDNSmNetLib.sprx` from 
 > It is highly suggested that you use webMAN MOD lite sintead of full unless you
 > need the additional features otherwise you risk tunning out of memory.
 
-**Do not add `qDNSmNetLib.sprx` to `boot_plugins.txt`.** It is not a boot plugin and must never be loaded at boot; it sits beside `qDNSm.sprx` and is loaded on demand, and it is needed only for updating the DNS server list and the supported games list.
+**Do not add `qDNSmNetLib.sprx` or `qDNSmOpenSpy.sprx` to `boot_plugins.txt`.** They are not boot plugins and must never be loaded at boot; they live in `qDNSm_modules/` beside `qDNSm.sprx` and are loaded on demand. The network module updates the DNS/game lists and the OpenSpy module applies the runtime patch. The files in `qDNSm_lang/` are on-demand language catalogs, not plugins.
+
+English is built into `qDNSm.sprx`. If a selected language file is missing or invalid, qDNSm uses English while keeping the selected language in `qDNSm.ini`; install the catalog later and the choice takes effect on the next load.
 
 You may then reboot in order for the plugin to load.
 
@@ -174,8 +178,9 @@ are in **Instructions → OpenSpy patch**.
 8. Exit the XMB and go online in the game and PSN.
 
 The option reports when no game is running, when the game is not supported, or
-when the patch fails. The **Show supported games** panel shows the titles known
-to the patch.
+when the patch fails. The **Show supported games** panel and the **Game
+Directory** show the titles known to the patch; search for `OpenSpy` in the
+directory to list them.
 
 ---
 
@@ -207,13 +212,15 @@ Build configuration: **`Release | PS3`**
 Output lands in:
 
 ```
-bin/Release-PS3/qDNSm.prx     raw linked module, not deployed
-bin/Release-PS3/qDNSm.sprx    signed — this is what you install
+bin/Release-PS3/qDNSm.prx           raw linked module, not deployed
+bin/Release-PS3/qDNSm.sprx          signed — this is what you install
+bin/Release-PS3/qDNSmNetLib.sprx    signed on-demand update helper
+bin/Release-PS3/qDNSmOpenSpy.sprx   signed on-demand OpenSpy helper
 ```
 
 Signing happens automatically in the post-build step. See
 [`docs/SIGNING.md`](docs/SIGNING.md) for how the key set is
-chosen and why a single signed file covers both CFW and HEN.
+chosen and why each signed file covers both CFW and HEN.
 
 ### The installer
 
@@ -225,8 +232,8 @@ docker run --rm -v "$PWD:/work" ps3dev/ps3dev:submodules bash -lc \
   'export PSL1GHT=/usr/local/ps3dev PS3DEV=/usr/local/ps3dev && cd /work/installer_src && make pkg'
 ```
 
-Build the plugin first — the packaging step copies the SPRX in, so a stale plugin
-will be packaged with no warning.
+Build the plugin and both helper modules first — the packaging step copies their
+SPRX files in, so a stale module will be packaged with no warning.
 
 To **repackage** after building either binary, without rebuilding anything:
 
@@ -234,9 +241,10 @@ To **repackage** after building either binary, without rebuilding anything:
 package-installer.bat
 ```
 
-That takes `bin\Release-PS3\qDNSm.sprx` and
-`bin\Release-PS3\installer\EBOOT.BIN` as they are and puts them in
-`bin\Release-PS3\qDNSm-Installer.pkg`. It needs Python 3 and nothing else.
+That takes `bin\Release-PS3\qDNSm.sprx`, `bin\Release-PS3\qDNSmNetLib.sprx`,
+`bin\Release-PS3\qDNSmOpenSpy.sprx` and `bin\Release-PS3\installer\EBOOT.BIN` as
+they are and puts them in `bin\Release-PS3\qDNSm-Installer.pkg`, with the two
+modules under `USRDIR/qDNSm_modules/`. It needs Python 3 and nothing else.
 
 On Linux, `packaging/make-pkg.py` does the same repackaging and stages the
 current binaries into the staging tree by default:

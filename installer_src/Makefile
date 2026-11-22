@@ -55,11 +55,19 @@ CONTENTID	:=	UP0001-$(APPID)_00-0000000000000000
 # the only difference was those two missing steps.
 #---------------------------------------------------------------------------------
 
+INSTALLER_DIR	:=	$(abspath $(dir $(firstword $(MAKEFILE_LIST))))
 PKGFILES	:=	$(CURDIR)/../packaging/pkgfiles
 ICON0		:=	$(CURDIR)/../packaging/assets/ICON0.PNG
 PAYLOAD		:=	$(CURDIR)/../bin/Release-PS3/qDNSm.sprx
 NETLIB		:=	$(CURDIR)/../bin/Release-PS3/qDNSmNetLib.sprx
+OPENSPY		:=	$(CURDIR)/../bin/Release-PS3/qDNSmOpenSpy.sprx
 GAMES		:=	$(CURDIR)/../data/qDNSm-server-games.ini
+LANGDIR		:=	$(INSTALLER_DIR)/../data/lang
+LANG_FILES	:=	$(filter-out $(LANGDIR)/en.ini,$(wildcard $(LANGDIR)/*.ini))
+
+ifeq ($(strip $(LANG_FILES)),)
+$(error no non-English language catalogs found in $(LANGDIR))
+endif
 EBOOT		:=	$(CURDIR)/../bin/Release-PS3/installer/EBOOT.BIN
 PKG_OUT		:=	$(CURDIR)/../bin/Release-PS3/qDNSm-Installer.pkg
 
@@ -115,17 +123,23 @@ $(BUILD):
 #   - a PARAM.SFO copied from Apollo's package and edited by hand, whose
 #     structural offsets had never been validated by the sfo tool
 #
-# Staging the payloads first: the installer reads qDNSm.sprx, qDNSmNetLib.sprx and
-# qDNSm-server-games.ini from its own USRDIR, so they have to ship beside the
-# EBOOT or Install() has nothing to copy.
+# Staging the payloads first: the installer reads qDNSm.sprx,
+# qDNSm-server-games.ini, qDNSm_modules/*.sprx and qDNSm_lang/*.ini from its own
+# USRDIR, so they have to ship beside the EBOOT or Install() has nothing to copy.
 # Depends on $(BUILD), not $(OUTPUT).self: compilation happens in the build/
 # sub-make, and asking the outer Makefile for $(OUTPUT).elf directly skips it
 # and fails the link with "undefined reference to `.main`".
 pkg: $(BUILD)
-	@mkdir -p $(PKGFILES)/USRDIR
+	@rm -rf $(PKGFILES)/USRDIR/qDNSm_modules
+	@mkdir -p $(PKGFILES)/USRDIR/qDNSm_modules
+	@rm -f $(PKGFILES)/USRDIR/qDNSmNetLib.sprx $(PKGFILES)/USRDIR/qDNSmOpenSpy.sprx
 	@cp $(PAYLOAD) $(PKGFILES)/USRDIR/qDNSm.sprx
-	@cp $(NETLIB) $(PKGFILES)/USRDIR/qDNSmNetLib.sprx
+	@cp $(NETLIB) $(PKGFILES)/USRDIR/qDNSm_modules/qDNSmNetLib.sprx
+	@cp $(OPENSPY) $(PKGFILES)/USRDIR/qDNSm_modules/qDNSmOpenSpy.sprx
 	@cp $(GAMES) $(PKGFILES)/USRDIR/qDNSm-server-games.ini
+	@mkdir -p $(PKGFILES)/USRDIR/qDNSm_lang
+	@rm -f $(PKGFILES)/USRDIR/qDNSm_lang/*.ini
+	@for file in $(LANG_FILES); do cp $$file $(PKGFILES)/USRDIR/qDNSm_lang/; done
 	@$(MAKE) --no-print-directory $(OUTPUT).pkg
 	@mkdir -p $(dir $(EBOOT)) $(dir $(PKG_OUT))
 	@cp $(OUTPUT).pkg $(PKG_OUT)
@@ -137,7 +151,7 @@ pkg: $(BUILD)
 
 # ppu_rules only makes the package depend on the SELF, so a payload rebuild
 # leaves the old package in place. Depend on the payloads directly.
-$(OUTPUT).pkg: $(PAYLOAD) $(NETLIB) $(GAMES)
+$(OUTPUT).pkg: $(PAYLOAD) $(NETLIB) $(OPENSPY) $(GAMES) $(LANG_FILES)
 
 # Wrap the ELF in a SELF. PSL1GHT's base_rules provide this; it is stated here so
 # the dependency is visible rather than inherited.

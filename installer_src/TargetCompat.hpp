@@ -102,6 +102,7 @@ typedef sysFSStat  CellFsStat;
 #define cellFsChmod       sysFsChmod
 #define cellFsUnlink      sysFsUnlink
 #define cellFsMkdir       sysFsMkdir
+#define cellFsRmdir       sysFsRmdir
 
 #else
 

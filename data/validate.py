@@ -13,6 +13,8 @@ MAX_GAMES_PER_SECTION = 512
 MAX_ALIASES = 16
 MAX_GAME_LENGTH = 96
 MAX_ALIAS_LENGTH = 64
+MAX_NOTE_LENGTH = 512
+KNOWN_TAGS = {"requires-patch", "requires-whitelist", "discord-account-linking"}
 MAX_DNS_ENTRIES = 256
 MAX_ONLINE_VERSION = 32
 MAX_ONLINE_URL = 256
@@ -83,16 +85,66 @@ def valid_version(value: str) -> bool:
     )
 
 
+def validate_game_comment(path: Path, line_number: int, line: str, current: dict,
+                          current_game: int | None) -> None:
+    body = trim(line[1:])
+    lower = body.lower()
+
+    if lower.startswith("tags:"):
+        if current_game is None:
+            raise ValidationError(f"{path}:{line_number}: tags comment must follow a Game= line")
+
+        value = trim(body[5:])
+        tags = [item for item in value.replace(",", " ").split() if item]
+        if not tags:
+            raise ValidationError(f"{path}:{line_number}: empty tags comment")
+
+        for tag in tags:
+            tag = tag.lower()
+            if tag not in KNOWN_TAGS:
+                raise ValidationError(f"{path}:{line_number}: unknown game tag \"{tag}\"")
+            current["games"][current_game]["tags"].add(tag)
+        return
+
+    if not lower.startswith("note:"):
+        return
+
+    value = trim(body[5:])
+    if not value:
+        raise ValidationError(f"{path}:{line_number}: empty note comment")
+    if len(value) > MAX_NOTE_LENGTH:
+        raise ValidationError(f"{path}:{line_number}: note is longer than {MAX_NOTE_LENGTH} characters")
+    check_text(value, f"{path}:{line_number}: note")
+
+    if current_game is not None:
+        notes = current["games"][current_game]["note"]
+    elif not current["games"]:
+        notes = current["note"]
+    else:
+        raise ValidationError(f"{path}:{line_number}: note comment must follow a Game= line")
+
+    total = sum(len(note) for note in notes) + len(value) + (1 if notes else 0)
+    if total > MAX_NOTE_LENGTH:
+        raise ValidationError(f"{path}:{line_number}: combined note is longer than {MAX_NOTE_LENGTH} characters")
+    notes.append(value)
+
+
 def parse_game_file(path: Path) -> dict:
     lines = read_ascii(path, MAX_GAME_FILE)
     sections: list[dict] = []
     by_key: dict[str, dict] = {}
     current: dict | None = None
+    current_game: int | None = None
 
     for line_number, raw in enumerate(lines, 1):
         line = trim(raw)
 
-        if not line or line.startswith("#") or line.startswith(";"):
+        if not line:
+            continue
+
+        if line.startswith("#") or line.startswith(";"):
+            if current is not None:
+                validate_game_comment(path, line_number, line, current, current_game)
             continue
 
         if line.startswith("["):
@@ -115,9 +167,11 @@ def parse_game_file(path: Path) -> dict:
                 "games": [],
                 "aliases": [],
                 "alias_seen": False,
+                "note": [],
             }
             sections.append(current)
             by_key[section_key] = current
+            current_game = None
             continue
 
         if current is None:
@@ -141,7 +195,8 @@ def parse_game_file(path: Path) -> dict:
             check_text(value, f"{path}:{line_number}")
             if len(current["games"]) >= MAX_GAMES_PER_SECTION:
                 raise ValidationError(f"{path}:{line_number}: more than {MAX_GAMES_PER_SECTION} Game= entries")
-            current["games"].append(value)
+            current["games"].append({"name": value, "tags": set(), "note": []})
+            current_game = len(current["games"]) - 1
             continue
 
         if key == "Aliases":
@@ -159,6 +214,7 @@ def parse_game_file(path: Path) -> dict:
                     raise ValidationError(f"{path}:{line_number}: alias is longer than {MAX_ALIAS_LENGTH} characters")
                 check_text(item, f"{path}:{line_number}")
             current["aliases"].extend(values)
+            current_game = None
             continue
 
         if key == "All":
@@ -171,12 +227,20 @@ def parse_game_file(path: Path) -> dict:
 
     total_games = sum(len(section["games"]) for section in sections)
     total_aliases = sum(len(section["aliases"]) for section in sections)
+    total_tagged = sum(
+        1 for section in sections for game in section["games"] if game["tags"]
+    )
+    total_notes = sum(
+        len(game["note"]) for section in sections for game in section["games"]
+    )
     max_games = max((len(section["games"]) for section in sections), default=0)
 
     return {
         "sections": sections,
         "games": total_games,
         "aliases": total_aliases,
+        "tagged": total_tagged,
+        "notes": total_notes,
         "max_games": max_games,
     }
 
@@ -361,6 +425,8 @@ def main() -> int:
     print(f"  sections: {len(game['sections'])}")
     print(f"  games: {game['games']}")
     print(f"  aliases: {game['aliases']}")
+    print(f"  tagged games: {game['tagged']}")
+    print(f"  game notes: {game['notes']}")
     print(f"  max games in a section: {game['max_games']}")
 
     if dns_path is None:

@@ -3,6 +3,7 @@
 #include "../Config.hpp"
 #include "../Network.hpp"
 #include "../InputUi.hpp"
+#include "../GameDirectory.hpp"
 #include "../GameListPanel.hpp"
 #include "../NetUpdate.hpp"
 #include "../OpenSpyPatch.hpp"
@@ -117,6 +118,9 @@ void ShowOpenSpyPatchResult(OpenSpyPatchOutcome outcome)
 		break;
 	case OpenSpyPatch_GameExited:
 		NotifyError(T(TEXT_NOTIFY_OPENSPY_GAME_EXITED));
+		break;
+	case OpenSpyPatch_Unsupported:
+		NotifyError(T(TEXT_NOTIFY_OPENSPY_UNSUPPORTED));
 		break;
 	default:
 		NotifyError(T(TEXT_NOTIFY_OPENSPY_FAILED));
@@ -345,6 +349,7 @@ void UpdateDnsFlow()
 #define ENTRY_PREFIX_OPTIONS L"\uF5B6 "
 #define ENTRY_PREFIX_OPENSPY L"\uF8B5 "
 #define ENTRY_PREFIX_INSTRUCTIONS L"\uF46A "
+#define ENTRY_PREFIX_GAMES L"\uF59F"
 
 /*
  * On styling the credit.
@@ -447,7 +452,8 @@ static void ApplyLanguage(int index)
 		return;
 	}
 
-	if (!Language_Init(Language_ResolveConfiguredCode(code)))
+	if (!Language_Init(Language_ResolveConfiguredCode(code)) ||
+		!Language_LoadAll())
 	{
 		g_Config.m_Settings.language = previous;
 		g_Config.Save();
@@ -456,8 +462,6 @@ static void ApplyLanguage(int index)
 		NotifyError(T(TEXT_ERROR_SAVE_LANGUAGE));
 		return;
 	}
-
-	Language_LoadAll();
 }
 
 void OptionsSubmenu()
@@ -537,6 +541,11 @@ void InstructionsSubmenu()
 	});
 }
 
+static void BeginGameDirectory()
+{
+	g_InputUi.BeginDirectory(GameList_Loaded);
+}
+
 void MainSubmenu()
 {
 	if (g_InputUi.IsActive())
@@ -573,23 +582,44 @@ void MainSubmenu()
 		BeginAdd();
 	});
 
-	g_Menu.Option(std::wstring(ENTRY_PREFIX_OPENSPY) + T(TEXT_MENU_OPENSPY_PATCH))
-		.WhileHovered([&openSpyHovered]
+	const bool openSpyAvailable = IsOpenSpyModuleAvailable();
+
+	g_Menu.Option(std::wstring(ENTRY_PREFIX_OPENSPY) + T(TEXT_MENU_OPENSPY_PATCH),
+		!openSpyAvailable)
+		.Description(openSpyAvailable ? L"" : L"qDNSm_modules/qDNSmOpenSpy.sprx")
+		.WhileHovered([&openSpyHovered, openSpyAvailable]
 		{
-			openSpyHovered = true;
-		}).Action([]
+			if (openSpyAvailable)
+				openSpyHovered = true;
+		}).Action([openSpyAvailable]
 	{
+		if (!openSpyAvailable)
+			return;
+
 		const OpenSpyPatchStart start = StartOpenSpyPatch();
 
 		if (start == OpenSpyPatch_NoGame)
 			NotifyError(T(TEXT_NOTIFY_OPENSPY_NO_GAME));
-		else if (start == OpenSpyPatch_Unsupported)
-			NotifyError(T(TEXT_NOTIFY_OPENSPY_UNSUPPORTED));
 		else if (start == OpenSpyPatch_StartFailed)
 			NotifyError(T(TEXT_NOTIFY_OPENSPY_FAILED));
 	});
 
 	g_Menu.Option(std::wstring(ENTRY_PREFIX_OPTIONS) + T(TEXT_MENU_OPTIONS)).Submenu(OptionsSubmenu);
+
+	const bool directoryAvailable = GameDirectory_IsAvailable();
+	const bool directoryDisabled = !directoryAvailable || IsNetUpdateBusy();
+
+	g_Menu.Option(std::wstring(ENTRY_PREFIX_GAMES) + T(TEXT_MENU_GAME_DIRECTORY), directoryDisabled)
+		.Description(directoryDisabled
+			? (directoryAvailable ? T(TEXT_OPTIONS_UPDATING) : T(TEXT_GAMELIST_MISSING_FILE))
+			: L"")
+		.Action([]
+		{
+			if (IsNetUpdateBusy() || !GameDirectory_IsAvailable())
+				return;
+
+			BeginGameDirectory();
+		});
 
 	g_Menu.Option(std::wstring(ENTRY_PREFIX_INSTRUCTIONS) + T(TEXT_MENU_INSTRUCTIONS)).Submenu(InstructionsSubmenu);
 

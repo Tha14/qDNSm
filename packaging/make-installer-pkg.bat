@@ -83,7 +83,10 @@ set "SPRX=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSm.sprx"
 set "PRX=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSm.prx"
 set "NETLIB=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSmNetLib.sprx"
 set "NETLIBPRX=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSmNetLib.prx"
+set "OPENSPY=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSmOpenSpy.sprx"
+set "OPENSPYPRX=%ROOT%\bin\%CONFIG%-%PLATFORM%\qDNSmOpenSpy.prx"
 set "GAMES=%ROOT%\data\qDNSm-server-games.ini"
+set "LANGDIR=%ROOT%\data\lang"
 set "WORK=%OUT_DIR%\pkgwork"
 set "STAGE=%WORK%\%TITLE_ID%"
 set "USRDIR=%STAGE%\USRDIR"
@@ -124,7 +127,9 @@ if %EBOOTSIZE% LSS 8192 if not defined ERR set "ERR=EBOOT.BIN is only %EBOOTSIZE
 
 if not exist "%SPRX%" if not defined ERR set "ERR=qDNSm.sprx missing - did the qDNSm project build?"
 if not exist "%NETLIB%" if not defined ERR set "ERR=qDNSmNetLib.sprx missing - did the qDNSmNetLib project build?"
+if not exist "%OPENSPY%" if not defined ERR set "ERR=qDNSmOpenSpy.sprx missing - did the qDNSmOpenSpy project build?"
 if not exist "%GAMES%" if not defined ERR set "ERR=qDNSm-server-games.ini missing at %GAMES%"
+if not exist "%LANGDIR%" if not defined ERR set "ERR=language catalog directory missing at %LANGDIR%"
 if not exist "%~dp0assets\ICON0.PNG" if not defined ERR set "ERR=ICON0.PNG missing at %~dp0assets\ICON0.PNG"
 if not exist "%~dp0assets\PARAM.SFO" if not defined ERR set "ERR=PARAM.SFO missing at %~dp0assets\PARAM.SFO"
 if not exist "%MAKERY%" if not defined ERR set "ERR=make-pkg.py not found at %MAKERY%"
@@ -157,6 +162,10 @@ if defined STALE if not defined ERR set "ERR=qDNSm.sprx is older than qDNSm.prx 
 set "STALENET="
 if exist "%NETLIB%" if exist "%NETLIBPRX%" for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "if ((Get-Item -LiteralPath '%NETLIB%').LastWriteTime -lt (Get-Item -LiteralPath '%NETLIBPRX%').LastWriteTime) { 'STALE' }" 2^>nul`) do set "STALENET=%%i"
 if defined STALENET if not defined ERR set "ERR=qDNSmNetLib.sprx is older than qDNSmNetLib.prx - this would package last build's network module. Build the qDNSmNetLib project again, then the installer."
+
+set "STALEOPENSPY="
+if exist "%OPENSPY%" if exist "%OPENSPYPRX%" for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "if ((Get-Item -LiteralPath '%OPENSPY%').LastWriteTime -lt (Get-Item -LiteralPath '%OPENSPYPRX%').LastWriteTime) { 'STALE' }" 2^>nul`) do set "STALEOPENSPY=%%i"
+if defined STALEOPENSPY if not defined ERR set "ERR=qDNSmOpenSpy.sprx is older than qDNSmOpenSpy.prx - this would package last build's OpenSpy module. Build the qDNSmOpenSpy project again, then the installer."
 
 REM Both the qDNSm plugin and the installer EBOOT are signed by scetool from
 REM vendor\scetool\bin\data\keys, so both are signed with the same key set. That
@@ -219,12 +228,25 @@ copy /Y "%OUT_DIR%\qDNSm.sprx" "%USRDIR%\qDNSm.sprx" >nul
 if errorlevel 1 set "ERR=could not stage qDNSm.sprx"
 if defined ERR goto :failed
 
-copy /Y "%NETLIB%" "%USRDIR%\qDNSmNetLib.sprx" >nul
+mkdir "%USRDIR%\qDNSm_modules" >nul 2>&1
+
+copy /Y "%NETLIB%" "%USRDIR%\qDNSm_modules\qDNSmNetLib.sprx" >nul
 if errorlevel 1 set "ERR=could not stage qDNSmNetLib.sprx"
+if defined ERR goto :failed
+
+copy /Y "%OPENSPY%" "%USRDIR%\qDNSm_modules\qDNSmOpenSpy.sprx" >nul
+if errorlevel 1 set "ERR=could not stage qDNSmOpenSpy.sprx"
 if defined ERR goto :failed
 
 copy /Y "%GAMES%" "%USRDIR%\qDNSm-server-games.ini" >nul
 if errorlevel 1 set "ERR=could not stage qDNSm-server-games.ini"
+if defined ERR goto :failed
+mkdir "%USRDIR%\qDNSm_lang" >nul 2>&1
+for %%F in ("%LANGDIR%\*.ini") do if /I not "%%~nxF"=="en.ini" (
+    copy /Y "%%F" "%USRDIR%\qDNSm_lang\%%~nxF" >nul
+    if errorlevel 1 set "ERR=could not stage language files"
+)
+if not exist "%USRDIR%\qDNSm_lang\*.ini" set "ERR=could not stage language files"
 if defined ERR goto :failed
 
 copy /Y "%~dp0assets\ICON0.PNG" "%STAGE%\ICON0.PNG" >nul

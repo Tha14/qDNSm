@@ -2,6 +2,7 @@
 #include "Memory/Pattern.hpp"
 #include "Menu/Base.hpp"
 #include "Menu/Submenus.hpp"   // UpdateDnsFlow
+#include "GameDirectory.hpp"
 #include "GameListPanel.hpp"
 #include "Network.hpp"
 #include "NetUpdate.hpp"
@@ -42,6 +43,8 @@ void pafFrameworkBeginHook(void* framework, float frameTime)
     g_Menu.SetBusyState(IsDnsApplyBusy() || IsOpenSpyPatchBusy(),
         GetDnsApplyPhase() == DnsApply_Reconnecting, IsOpenSpyPatchBusy());
     g_GameListPanel.OnFrame(g_Menu.IsOpened(), g_Menu.IsMainMenu());
+    GameDirectory_OnFrame(g_Menu.IsOpened());
+    OpenSpyModule_OnFrame(g_Menu.IsOpened());
     g_Menu.OnUpdate();
 
     /*
@@ -71,17 +74,14 @@ int cellPadGetDataExtraInternalHook(void* r3, uint32_t portNum, uint32_t* device
 
     g_Input.SetInputData(data);
 
-    if (g_Menu.IsFullyOpen())
+    if (g_Menu.IsOpened() || g_InputUi.IsActive())
     {
-        /* Mask only while fully visible; input was captured above and OnClose() clears it before fade-out. */
-        data->button[CELL_PAD_BTN_OFFSET_DIGITAL1] &= ~(CELL_PAD_CTRL_LEFT | CELL_PAD_CTRL_DOWN | CELL_PAD_CTRL_RIGHT | CELL_PAD_CTRL_UP | CELL_PAD_CTRL_SELECT);
-        data->button[CELL_PAD_BTN_OFFSET_DIGITAL2] &= ~(CELL_PAD_CTRL_CROSS | CELL_PAD_CTRL_CIRCLE | CELL_PAD_CTRL_SQUARE | CELL_PAD_CTRL_TRIANGLE | CELL_PAD_CTRL_L1 | CELL_PAD_CTRL_R1);
-
-        if (g_Menu.IsMoving())
-        {
-            data->button[CELL_PAD_BTN_OFFSET_ANALOG_RIGHT_X] = 128;
-            data->button[CELL_PAD_BTN_OFFSET_ANALOG_RIGHT_Y] = 128;
-        }
+        /* The raw copy above belongs to qDNSm; every VSH reader gets an idle pad. */
+        vsh::memset(data->button, 0, sizeof(data->button));
+        data->button[CELL_PAD_BTN_OFFSET_ANALOG_RIGHT_X] = 128;
+        data->button[CELL_PAD_BTN_OFFSET_ANALOG_RIGHT_Y] = 128;
+        data->button[CELL_PAD_BTN_OFFSET_ANALOG_LEFT_X] = 128;
+        data->button[CELL_PAD_BTN_OFFSET_ANALOG_LEFT_Y] = 128;
     }
 
     return returnValue;

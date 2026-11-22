@@ -1,14 +1,67 @@
 #include "../GameList.hpp"
+#include "../GameDirectory.hpp"
 #include "../../Net/DnsList.hpp"
 #include "../Language.hpp"
+#include "../LanguageCatalog.hpp"
 #include "../LanguageCodec.hpp"
+#include "../LanguageStorage.hpp"
 #include "../MemoryWarningPolicy.hpp"
-#include "../OpenSpyPatchPlan.hpp"
-#include "../OpenSpySupportedTitles.hpp"
+#include "../../OpenSpy/OpenSpyPatchPlan.hpp"
+#include "../../OpenSpy/OpenSpySupportedTitles.hpp"
 #include "../Version.hpp"
 #include "../../Memory/AobScan.hpp"
 
 #include <cstdio>
+#include <fstream>
+#include <iterator>
+
+#ifndef QDNSM_TEST_LANG_DIR
+#define QDNSM_TEST_LANG_DIR "data/lang"
+#endif
+
+static bool g_LanguageFileMissing = false;
+static std::string g_LanguageFileOverride;
+
+static std::string TestLanguagePath(const std::string& code)
+{
+	return std::string(QDNSM_TEST_LANG_DIR) + "/" + code + ".ini";
+}
+
+static bool ReadTestLanguageFile(const std::string& path, std::string& out)
+{
+	std::ifstream file(path.c_str(), std::ios::binary);
+
+	if (!file)
+		return false;
+
+	std::string data((std::istreambuf_iterator<char>(file)),
+		std::istreambuf_iterator<char>());
+	out.swap(data);
+	return true;
+}
+
+bool Language_ExternalFileExists(const std::string& code)
+{
+	if (g_LanguageFileMissing && (code == "de"))
+		return false;
+
+	std::ifstream file(TestLanguagePath(code).c_str(), std::ios::binary);
+	return file.good();
+}
+
+bool Language_ReadExternalFile(const std::string& code, std::string& out)
+{
+	if (g_LanguageFileMissing && (code == "de"))
+		return false;
+
+	if (!g_LanguageFileOverride.empty() && (code == "de"))
+	{
+		out = g_LanguageFileOverride;
+		return true;
+	}
+
+	return ReadTestLanguageFile(TestLanguagePath(code), out);
+}
 
 static int g_Failures = 0;
 
@@ -38,7 +91,10 @@ static void TestGameList()
 		"# comment\n"
 		"[146.190.205.197]\n"
 		"Aliases=PS3 Reborn|SaveConfrontation\n"
+		"# note: shared server note\n"
 		"Game=Gran Turismo 5\n"
+		"# tags: requires-patch, future-tag\n"
+		"# note: game note\n"
 		"Game=Gran Turismo 5\n"
 		"Game=SOCOM: Confrontation\n"
 		"\n"
@@ -49,7 +105,23 @@ static void TestGameList()
 	Check(sections.size() == 2, "two sections");
 	Check(sections[0].games.size() == 3, "duplicate games preserved");
 	Check(sections[0].aliases.size() == 2, "aliases parsed");
+	Check(sections[0].games[0].name == W("Gran Turismo 5"), "game name parsed");
+	Check(sections[0].games[0].tags == GameTag_RequiresPatch, "metadata tag parsed");
+	Check(sections[0].games[0].note == W("game note"), "game note parsed");
+	Check(sections[0].note == W("shared server note"), "server note parsed");
 	Check(sections[1].games.size() == 1, "second section parsed");
+
+	const char* metadata =
+		"[1.1.1.1]\n"
+		"Game=Metadata\n"
+		"# tags: requires-patch, requires-whitelist, discord-account-linking, future-tag\n"
+		"# note: first line\n"
+		"# NOTE: second line\n";
+	Check(ParseGameList(metadata, std::char_traits<char>::length(metadata), sections), "metadata comments parse");
+	Check(sections[0].games[0].tags == (GameTag_RequiresPatch | GameTag_RequiresWhitelist |
+		GameTag_DiscordAccountLinking),
+		"known tags combine and unknown tags are ignored");
+	Check(sections[0].games[0].note == W("first line\nsecond line"), "note lines combine");
 
 	const char* openSpy =
 		"[OpenSpy]\n"
@@ -123,6 +195,44 @@ static void TestGameList()
 		"Game=Game B\n";
 	Check(ParseGameList(validForUpdate, std::char_traits<char>::length(validForUpdate), sections), "valid update catalogue parses");
 	Check(ValidateGameList(sections), "valid update catalogue accepted by validator");
+}
+
+static void TestGameListSection()
+{
+	const char* text =
+		"# header\n"
+		"[1.1.1.1]\n"
+		"Aliases=Shared\n"
+		"Game=Alpha\n"
+		"# tags: requires-patch\n"
+		"# note: ignored by the supported-games panel\n"
+		"Game=Beta\n"
+		"[2.2.2.2]\n"
+		"Game=Gamma\n";
+
+	GameListSection section;
+	bool found = false;
+
+	Check(ParseGameListSection(text, std::char_traits<char>::length(text), "1.1.1.1",
+		section, found), "single section parses");
+	Check(found, "single section found");
+	Check(section.key == "1.1.1.1", "single section key");
+	Check(section.games.size() == 2, "single section skips comments");
+	Check(section.games[0].name == L"Alpha", "single section first game");
+	Check(section.games[1].name == L"Beta", "single section second game");
+	Check(section.games[0].tags == GameTag_None, "single section ignores tags");
+	Check(section.games[0].note.empty(), "single section ignores notes");
+	Check(section.aliases.size() == 1, "single section aliases");
+
+	Check(ParseGameListSection(text, std::char_traits<char>::length(text), "2.2.2.2",
+		section, found), "second single section parses");
+	Check(found && (section.games.size() == 1) && (section.games[0].name == L"Gamma"),
+		"second single section selected");
+
+	Check(ParseGameListSection(text, std::char_traits<char>::length(text), "3.3.3.3",
+		section, found), "missing single section parses");
+	Check(!found && section.key.empty() && section.games.empty(),
+		"missing single section is empty");
 }
 
 static void TestDnsList()
@@ -394,6 +504,46 @@ static void TestMerge()
 
 static void TestLanguage()
 {
+	std::wstring parsed[TEXT_COUNT];
+	bool present[TEXT_COUNT];
+
+	Check(Language_ParseCatalog(
+		"\xEF\xBB\xBFTEXT_INPUT_YES=Ja\r\nTEXT_INPUT_NO=Nein\n",
+		parsed, present), "external catalog parses");
+	Check(present[TEXT_INPUT_YES] && (parsed[TEXT_INPUT_YES] == L"Ja"),
+		"external catalog decodes a value");
+	Check(present[TEXT_INPUT_NO] && (parsed[TEXT_INPUT_NO] == L"Nein"),
+		"external catalog accepts CRLF");
+	Check(!present[TEXT_LANGUAGE_AUTO], "missing external key is absent");
+
+	Check(Language_ParseCatalog("TEXT_INPUT_YES=Line\\nText\n",
+		parsed, present), "escape sequence parses");
+	Check(present[TEXT_INPUT_YES] && (parsed[TEXT_INPUT_YES] == L"Line\nText"),
+		"escape sequence decodes");
+	Check(Language_ParseCatalog("TEXT_INPUT_YES=\xC3\xA9\n",
+		parsed, present), "UTF-8 catalog parses");
+	Check(present[TEXT_INPUT_YES] && (parsed[TEXT_INPUT_YES] == L"\u00e9"),
+		"UTF-8 catalog value decodes");
+	Check(!Language_ParseCatalog("TEXT_INPUT_YES=bad\\q\n", parsed, present),
+		"unknown escape is rejected");
+	Check(!Language_ParseCatalog(
+		"TEXT_INPUT_YES=A\nTEXT_INPUT_YES=B\n", parsed, present),
+		"duplicate key is rejected");
+	Check(!Language_ParseCatalog("UNKNOWN_KEY=value\n", parsed, present),
+		"catalog without known keys is rejected");
+	Check(Language_ParseCatalog("TEXT_INPUT_YES=\n", parsed, present) &&
+		!present[TEXT_INPUT_YES], "empty known value falls back per key");
+	Check(Language_TextsCompatible(L"{0} test", L"{0} test"),
+		"matching placeholders are compatible");
+	Check(!Language_TextsCompatible(L"{0} test", L"{1} test"),
+		"mismatched placeholders are rejected");
+	Check(!Language_TextsCompatible(L"{0} {0}", L"{0} {1}"),
+		"placeholder counts are compared");
+	Check(Language_TextsCompatible(L"\uF88B", L"\uF88B"),
+		"matching glyphs are compatible");
+	Check(!Language_TextsCompatible(L"\uF88B", L"\uF88C"),
+		"mismatched glyphs are rejected");
+
 	Check(DecodeUtf8("qDNSm") == std::wstring(L"qDNSm"), "UTF-8 ASCII decodes");
 	Check(DecodeUtf8("\xC3\xA9") == std::wstring(L"\u00e9"), "UTF-8 two-byte decodes");
 	Check(DecodeUtf8("\xEF\xA2\x8B") == std::wstring(L"\uF88B"), "UTF-8 glyph decodes");
@@ -417,8 +567,11 @@ static void TestLanguage()
 	Check(Language_IndexOfCode("fr") == 4, "French index");
 
 	Check(Language_Init("en"), "English initializes");
+	Check(Language_LoadAll(), "English loads");
 	Check(std::wstring(T(TEXT_INPUT_YES)) == std::wstring(L"Yes"), "English Yes");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"No"), "English No");
+	Check(Language_NotifyText(TEXT_NOTIFY_LOADED).find(L"qDNSm Loaded") !=
+		std::wstring::npos, "English startup notification");
 	const std::wstring updateNotice = FormatText(TEXT_UPDATE_AVAILABLE, L"9.9",
 		L"https://example.test/qDNSm");
 	Check(updateNotice.find(L"v9.9") != std::wstring::npos, "update version is formatted");
@@ -426,58 +579,91 @@ static void TestLanguage()
 		"update URL is formatted");
 
 	Check(Language_Init("de"), "German initializes");
+	Check(Language_LoadAll(), "German loads");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"Nein"), "German No");
 	Check(std::wstring(T(TEXT_INPUT_YES)) == std::wstring(L"Ja"), "German Yes");
 	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Auto"), "German Auto");
 	Check(FormatText(TEXT_NOTIFY_DNS_SET_MANUAL, L"X").find(L"DNS auf X gesetzt.") == 0,
 		"German formatted notification");
+	Check(Language_NotifyText(TEXT_NOTIFY_LOADED).find(L"qDNSm") != std::wstring::npos,
+		"German startup notification");
 
 	Check(Language_Init("es"), "Spanish initializes");
+	Check(Language_LoadAll(), "Spanish loads");
 	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Autom\u00e1tico"), "Spanish Auto");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"No"), "Spanish No");
 
 	Check(Language_Init("fr"), "French initializes");
+	Check(Language_LoadAll(), "French loads");
 	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Automatique"), "French Auto");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"Non"), "French No");
 
 	Check(Language_Init("it"), "Italian initializes");
+	Check(Language_LoadAll(), "Italian loads");
 	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Automatico"), "Italian Auto");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"No"), "Italian No");
 
 	Check(Language_Init("pt_BR"), "Brazilian Portuguese initializes");
+	Check(Language_LoadAll(), "Brazilian Portuguese loads");
 	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Autom\u00e1tico"), "Brazilian Portuguese Auto");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"N\u00e3o"), "Brazilian Portuguese No");
 
 	Check(Language_Init("pt_PT"), "European Portuguese initializes");
+	Check(Language_LoadAll(), "European Portuguese loads");
 	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Autom\u00e1tico"), "European Portuguese Auto");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"N\u00e3o"), "European Portuguese No");
 
 	Check(Language_Init("ru"), "Russian initializes");
+	Check(Language_LoadAll(), "Russian loads");
 	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"\u0410\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0438"), "Russian Auto");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"\u041d\u0435\u0442"), "Russian No");
 
 	Check(Language_Init("pl"), "Polish initializes");
+	Check(Language_LoadAll(), "Polish loads");
 	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"Auto"), "Polish Auto");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"Nie"), "Polish No");
 
 	Check(Language_Init("ja"), "Japanese initializes");
+	Check(Language_LoadAll(), "Japanese loads");
 	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"\u81ea\u52d5"), "Japanese Auto");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"\u3044\u3044\u3048"), "Japanese No");
 
 	Check(Language_Init("zh_CN"), "Simplified Chinese initializes");
+	Check(Language_LoadAll(), "Simplified Chinese loads");
 	Check(std::wstring(T(TEXT_LANGUAGE_AUTO)) == std::wstring(L"\u81ea\u52a8"), "Simplified Chinese Auto");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"\u5426"), "Simplified Chinese No");
 
+	g_LanguageFileMissing = true;
+	Check(!Language_Init("de"), "missing external language reports fallback");
+	Check(Language_ActiveCode() == "en", "missing external language selects English");
+	Check(Language_LoadAll(), "missing external language loads English");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"No"),
+		"missing external language falls back to English");
+	g_LanguageFileMissing = false;
+	Check(Language_LoadAll(), "language loads after its file appears");
+	Check(Language_ActiveCode() == "de", "late external language is selected");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"Nein"),
+		"late external language is loaded");
+
+	g_LanguageFileOverride = "BROKEN\n";
+	Check(Language_Init("de"), "invalid external language initializes");
+	Check(!Language_LoadAll(), "invalid external language reports failure");
+	Check(Language_ActiveCode() == "en", "invalid external language selects English");
+	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"No"),
+		"invalid external language falls back to English");
+	g_LanguageFileOverride.clear();
+
 	Check(Language_Init("pt_PT"), "Portuguese reselected for unload test");
+	Check(Language_LoadAll(), "Portuguese loads after reselect");
 	Language_Unload();
+	Check(Language_LoadAll(), "language reloads after unload");
 	Check(std::wstring(T(TEXT_INPUT_NO)) == std::wstring(L"N\u00e3o"), "language reloads after unload");
-	Language_LoadAll();
 	Check(std::wstring(T(TEXT_INPUT_YES)) == std::wstring(L"Sim"), "language loads all after unload");
 
 	for (int language = 1; language < Language_CodeCount(); language++)
 	{
 		Check(Language_Init(Language_CodeAtIndex(language)), "catalog initializes");
-		Language_LoadAll();
+		Check(Language_LoadAll(), "catalog loads");
 
 		for (int text = 0; text < TEXT_COUNT; text++)
 			Check(!TS(static_cast<TextId>(text)).empty(), "catalog entry is not empty");
@@ -700,9 +886,115 @@ static void TestPatchPlan()
 		"required pattern missing is rejected");
 }
 
+static void TestGameDirectorySearch()
+{
+	const char* text =
+		"[1.1.1.1]\n"
+		"Aliases=Shared\n"
+		"# note: shared server note\n"
+		"Game=Alpha\n"
+		"# tags: requires-patch\n"
+		"# note: alpha note\n"
+		"Game=Beta\n"
+		"# tags: requires-patch\n"
+		"Game=Alpha\n"
+		"[2.2.2.2]\n"
+		"# note: blue server note\n"
+		"Game=Beta\n"
+		"# tags: requires-whitelist, discord-account-linking\n"
+		"Game=Gamma\n"
+		"[3.3.3.3]\n"
+		"[OpenSpy]\n"
+		"Game=Delta\n"
+		"Game=Gamma\n";
+
+	std::vector<DnsServerEntry> servers;
+
+	DnsServerEntry projectA{};
+	projectA.name = L"Project Red";
+	projectA.primary = "1.1.1.1";
+	servers.push_back(projectA);
+
+	DnsServerEntry projectB{};
+	projectB.name = L"Project Blue";
+	projectB.primary = "1.1.1.1";
+	servers.push_back(projectB);
+
+	DnsServerEntry projectC{};
+	projectC.name = L"Project Green";
+	projectC.primary = "2.2.2.2";
+	servers.push_back(projectC);
+
+	GameDirectoryRows rows;
+	bool truncated = false;
+
+	GameListLoadResult result = GameDirectory_SearchText(text, servers, "ALPHA", false, rows,
+		truncated);
+	Check(result == GameList_Loaded, "directory streaming search loads");
+	Check(!truncated, "directory streaming search is not truncated");
+	Check(rows.size() == 1, "directory streaming search skips duplicate game entries");
+	Check(rows[0].game == L"Alpha", "directory streaming search matches the game");
+	Check(rows[0].projects.size() == 2, "directory streaming search collects projects");
+	Check(rows[0].aliases.size() == 1, "directory streaming search keeps aliases");
+	Check(rows[0].ips.size() == 1 && rows[0].ips[0] == "1.1.1.1",
+		"directory streaming search records the IP");
+	Check(rows[0].tags == GameTag_RequiresPatch, "directory search carries game tags");
+	Check(rows[0].notes.size() == 2, "directory search carries game and server notes");
+	Check((rows[0].notes[0].server == false) && (rows[0].notes[1].server == true),
+		"directory notes keep their kind");
+
+	result = GameDirectory_SearchText(text, servers, "project blue", false, rows, truncated);
+	Check((result == GameList_Loaded) && (rows.size() == 2),
+		"directory streaming search matches projects");
+
+	result = GameDirectory_SearchText(text, servers, "shared", false, rows, truncated);
+	Check((result == GameList_Loaded) && (rows.size() == 2),
+		"directory streaming search matches aliases");
+
+	result = GameDirectory_SearchText(text, servers, "beta", true, rows, truncated);
+	Check((result == GameList_Loaded) && (rows.size() == 1),
+		"grouped streaming search merges games");
+	Check(rows[0].projects.size() == 3, "grouped streaming search merges projects");
+	Check(rows[0].ips.size() == 2, "grouped streaming search merges IPs");
+	Check(rows[0].tags == (GameTag_RequiresPatch | GameTag_RequiresWhitelist |
+		GameTag_DiscordAccountLinking),
+		"grouped streaming search unions tags");
+	Check(rows[0].notes.size() == 2, "grouped streaming search merges notes");
+
+	result = GameDirectory_SearchText(text, servers, "openspy", false, rows, truncated);
+	Check((result == GameList_Loaded) && (rows.size() == 2),
+		"directory streaming search finds OpenSpy");
+	Check((rows[0].projects.size() == 1) && (rows[0].projects[0] == L"OpenSpy"),
+		"directory OpenSpy rows carry the project name");
+	Check(rows[0].ips.empty() && rows[1].ips.empty(),
+		"directory OpenSpy rows do not invent an IP");
+
+	result = GameDirectory_SearchText(text, servers, "delta", false, rows, truncated);
+	Check((result == GameList_Loaded) && (rows.size() == 1) &&
+		(rows[0].game == L"Delta"), "directory OpenSpy-only game is searchable");
+	Check((rows[0].projects.size() == 1) && rows[0].ips.empty(),
+		"directory OpenSpy-only game has no IP");
+
+	result = GameDirectory_SearchText(text, servers, "gamma", true, rows, truncated);
+	Check((result == GameList_Loaded) && (rows.size() == 1),
+		"grouped OpenSpy search merges with a DNS project");
+	Check((rows[0].projects.size() == 2) && (rows[0].projects[0] == L"Project Green"),
+		"grouped OpenSpy search keeps the DNS project");
+	Check(rows[0].projects[1] == L"OpenSpy",
+		"grouped OpenSpy search adds the OpenSpy project");
+	Check((rows[0].ips.size() == 1) && (rows[0].ips[0] == "2.2.2.2"),
+		"grouped OpenSpy search keeps only the DNS IP");
+
+	result = GameDirectory_SearchText(text, servers, "missing", false, rows, truncated);
+	Check((result == GameList_Loaded) && rows.empty(),
+		"directory streaming search returns no matches");
+}
+
 int main()
 {
 	TestGameList();
+	TestGameListSection();
+	TestGameDirectorySearch();
 	TestDnsList();
 	TestVersion();
 	TestMemoryWarningPolicy();

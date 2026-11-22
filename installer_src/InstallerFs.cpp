@@ -277,6 +277,14 @@ namespace InstFs
         return cellFsUnlink(path.c()) == CELL_FS_SUCCEEDED;
     }
 
+    bool RemoveDirectory(const Small::Str& path)
+    {
+        if (!DirectoryExists(path))
+            return true;
+
+        return cellFsRmdir(path.c()) == CELL_FS_SUCCEEDED;
+    }
+
     bool EnsureEmptyFile(const Small::Str& path)
     {
         if (FileExists(path))

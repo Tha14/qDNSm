@@ -272,11 +272,11 @@ DnsApplyPhase GetDnsApplyPhase()
 
 static void ShowReconnectFailure(bool willFail)
 {
-	const wchar_t* message = T(willFail
+	std::wstring message = Language_NotifyText(willFail
 		? TEXT_NOTIFY_RECONNECT_WILL_FAIL
 		: TEXT_NOTIFY_RECONNECT_FAILED);
 
-	vsh::ShowNotificationWithIcon(message, vsh::NotifyIcon::Caution,
+	vsh::ShowNotificationWithIcon(message.c_str(), vsh::NotifyIcon::Caution,
 		vsh::NotifySound::Error);
 }
 
@@ -330,7 +330,8 @@ static void NetworkThread(uint64_t)
 			std::wstring name;
 			AsciiToWide(name, s_ReconnectName);
 
-			std::wstring message = FormatText(TEXT_NOTIFY_DNS_CHANGED, name);
+			std::wstring message =
+				Language_FormatNotify(TEXT_NOTIFY_DNS_CHANGED, name);
 
 			ShowSuccessNotification(message);
 		}

@@ -67,6 +67,7 @@
 #include "InstallerFs.hpp"
 #include "BootPlugins.hpp"
 #include "Dialog.hpp"
+#include "LanguageFiles.generated.hpp"
 
 
 /*
@@ -99,13 +100,17 @@ namespace
      * is not - the loader reads it from the dev_hdd0 root, which is where it has
      * always been looked for, and putting it in /plugins made it unreadable. */
     const char* kPluginsDir = "/dev_hdd0/plugins";
+    const char* kModulesDirName = "qDNSm_modules";
+    const char* kModulesDir = "/dev_hdd0/plugins/qDNSm_modules";
     const char* kSprxName = "qDNSm.sprx";
     const char* kNetLibName = "qDNSmNetLib.sprx";
+    const char* kOpenSpyName = "qDNSmOpenSpy.sprx";
     const char* kGamesName = "qDNSm-server-games.ini";
+    const char* kLanguageDir = "/dev_hdd0/plugins/qDNSm_lang";
     const char* kBootPluginsPath = "/dev_hdd0/boot_plugins.txt";
     const char* kHenUpdaterOffPath = "/dev_hdd0/hen_updater.off";
 
-    /* A qDNSm.sprx or qDNSmNetLib.sprx is a signed SELF of tens of KB. Anything
+    /* A qDNSm.sprx, qDNSmNetLib.sprx or qDNSmOpenSpy.sprx is a signed SELF of tens of KB. Anything
      * smaller is a truncated payload or a file that is not what it claims to
      * be. Used only to catch obvious damage early - the installer does not try
      * to validate the signature, because a 3.55-signed fake self is deliberately
@@ -118,6 +123,7 @@ namespace
      * because it makes the intended size explicit at the call site. */
     const size_t kMinPluginBytes = 4096;
     const size_t kMinGamesBytes = 16;
+    const size_t kMinLanguageBytes = 16;
     const size_t kMaxPayloadBytes = Small::kMaxPayload;
 
     /* Payload storage. File scope, not stack: it is a megabyte, and a megabyte
@@ -174,18 +180,10 @@ namespace
      *
      * WriteBinaryStaged is used for every file, so a failed update restores the
      * previous contents instead of leaving a truncated plugin or game list. */
-    bool CopyPayload(const Small::Str& selfDir, const char* fileName,
-                     const Small::Str& destPath, size_t minBytes,
-                     const char* progress)
+    bool CopyPayloadFrom(const Small::Str& sourcePath,
+                         const Small::Str& destPath, size_t minBytes,
+                         const char* progress)
     {
-        Small::Str sourcePath;
-
-        if (!sourcePath.Set(selfDir) || !sourcePath.Append(fileName))
-        {
-            Ui::Notify("qDNSm Installer: could not build a payload path. Nothing was changed.");
-            return false;
-        }
-
         if (Dialog::Available())
             Dialog::SetProgress(progress);
 
@@ -213,15 +211,77 @@ namespace
         return true;
     }
 
+    bool CopyPayload(const Small::Str& selfDir, const char* fileName,
+                     const Small::Str& destPath, size_t minBytes,
+                     const char* progress)
+    {
+        Small::Str sourcePath;
+
+        if (!sourcePath.Set(selfDir) || !sourcePath.Append(fileName))
+        {
+            Ui::Notify("qDNSm Installer: could not build a payload path. Nothing was changed.");
+            return false;
+        }
+
+        return CopyPayloadFrom(sourcePath, destPath, minBytes, progress);
+    }
+
+    bool CopyModulePayload(const Small::Str& selfDir, const char* fileName,
+                           const Small::Str& destPath, const char* progress)
+    {
+        Small::Str sourcePath;
+
+        if (!sourcePath.Set(selfDir) || !sourcePath.Append(kModulesDirName) ||
+            !sourcePath.Append("/") || !sourcePath.Append(fileName))
+        {
+            Ui::Notify("qDNSm Installer: could not build a module path. Nothing was changed.");
+            return false;
+        }
+
+        return CopyPayloadFrom(sourcePath, destPath, kMinPluginBytes, progress);
+    }
+
+    bool RemoveLegacyModuleCopies()
+    {
+        const char* const names[] = { kNetLibName, kOpenSpyName };
+
+        for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++)
+        {
+            Small::Str path;
+
+            if (!path.Set(kPluginsDir) || !path.Append("/") ||
+                !path.Append(names[i]))
+            {
+                Ui::Notify("qDNSm Installer: could not build an old module path.");
+                return false;
+            }
+
+            if (!InstFs::DeleteFile(path))
+            {
+                Ui::Notify("qDNSm Installer: an old module copy could not be removed.");
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     bool Install(const Small::Str& selfDir,
                  const Small::Str& sprxPath,
                  const Small::Str& netLibPath,
+                 const Small::Str& openSpyPath,
                  const Small::Str& gamesPath,
                  const Small::Str& bootPath)
     {
         if (!InstFs::EnsureDirectory(kPluginsDir))
         {
             Ui::Notify("qDNSm Installer: could not create /dev_hdd0/plugins. Nothing was changed.");
+            return false;
+        }
+
+        if (!InstFs::EnsureDirectory(kModulesDir))
+        {
+            Ui::Notify("qDNSm Installer: could not create /dev_hdd0/plugins/qDNSm_modules. Nothing was changed.");
             return false;
         }
 
@@ -242,11 +302,15 @@ namespace
             return false;
         }
 
-        /* The network module and game list are written first. They are useless
-         * without the plugin, so a failure here leaves the previous install
-         * alone rather than upgrading the plugin under an old module. */
-        if (!CopyPayload(selfDir, kNetLibName, netLibPath,
-                kMinPluginBytes, "Copying the network module..."))
+        /* The network and OpenSpy modules and game list are written first. They
+         * are useless without the plugin, so a failure here leaves the previous
+         * install alone rather than upgrading the plugin under an old helper. */
+        if (!CopyModulePayload(selfDir, kNetLibName, netLibPath,
+                "Copying the network module..."))
+            return false;
+
+        if (!CopyModulePayload(selfDir, kOpenSpyName, openSpyPath,
+                "Copying the OpenSpy module..."))
             return false;
 
         /* The game list is a first-install fallback. When one is already
@@ -256,6 +320,33 @@ namespace
         {
             if (!CopyPayload(selfDir, kGamesName, gamesPath,
                     kMinGamesBytes, "Copying the game list..."))
+                return false;
+        }
+
+        if (!InstFs::EnsureDirectory(kLanguageDir))
+        {
+            Ui::Notify("qDNSm Installer: could not create /dev_hdd0/plugins/qDNSm_lang. Nothing was changed.");
+            return false;
+        }
+
+        for (int i = 0; i < kLanguageFileCount; i++)
+        {
+            Small::Str sourcePath;
+            Small::Str destPath;
+
+            if (!sourcePath.Set(selfDir) ||
+                !sourcePath.Append("qDNSm_lang/") ||
+                !sourcePath.Append(kLanguageFiles[i]) ||
+                !destPath.Set(kLanguageDir) ||
+                !destPath.Append("/") ||
+                !destPath.Append(kLanguageFiles[i]))
+            {
+                Ui::Notify("qDNSm Installer: could not build a language file path. Nothing was changed.");
+                return false;
+            }
+
+            if (!CopyPayloadFrom(sourcePath, destPath, kMinLanguageBytes,
+                    "Copying language files..."))
                 return false;
         }
 
@@ -277,6 +368,12 @@ namespace
 
             return false;
         }
+
+        /* Older installs kept both helper modules beside qDNSm.sprx. They are
+         * now loaded from qDNSm_modules/ only, so remove the stale copies after
+         * the new install is complete. */
+        if (!RemoveLegacyModuleCopies())
+            return false;
 
         return true;
     }
@@ -301,13 +398,28 @@ namespace
             return false;
         }
 
-        const char* const names[] = { kSprxName, kNetLibName, kGamesName };
+        struct OwnedFile
+        {
+            const char* directory;
+            const char* name;
+        };
 
-        for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++)
+        const OwnedFile files[] =
+        {
+            { kPluginsDir, kSprxName },
+            { kPluginsDir, kGamesName },
+            { kPluginsDir, kNetLibName },
+            { kPluginsDir, kOpenSpyName },
+            { kModulesDir, kNetLibName },
+            { kModulesDir, kOpenSpyName },
+        };
+
+        for (size_t i = 0; i < sizeof(files) / sizeof(files[0]); i++)
         {
             Small::Str path;
 
-            if (!path.Set(kPluginsDir) || !path.Append("/") || !path.Append(names[i]))
+            if (!path.Set(files[i].directory) || !path.Append("/") ||
+                !path.Append(files[i].name))
             {
                 Ui::Notify("qDNSm Installer: could not build a file path while uninstalling.");
                 return false;
@@ -315,7 +427,8 @@ namespace
 
             /* A missing file is not a failure here - it is already removed.
              * boot_plugins.txt has been cleaned either way, which is what
-             * matters. */
+             * matters. The two flat plugin paths are leftovers from older
+             * installs and are removed as well. */
             if (InstFs::FileExists(path) && !InstFs::DeleteFile(path))
             {
                 Ui::Notify("qDNSm Installer: boot_plugins.txt was updated but a plugin file could not be deleted.");
@@ -323,6 +436,26 @@ namespace
             }
         }
 
+        for (int i = 0; i < kLanguageFileCount; i++)
+        {
+            Small::Str path;
+
+            if (!path.Set(kLanguageDir) || !path.Append("/") ||
+                !path.Append(kLanguageFiles[i]))
+            {
+                Ui::Notify("qDNSm Installer: could not build a language file path while uninstalling.");
+                return false;
+            }
+
+            if (InstFs::FileExists(path) && !InstFs::DeleteFile(path))
+            {
+                Ui::Notify("qDNSm Installer: a language file could not be deleted.");
+                return false;
+            }
+        }
+
+        InstFs::RemoveDirectory(kModulesDir);
+        InstFs::RemoveDirectory(kLanguageDir);
         return true;
     }
 
@@ -330,13 +463,17 @@ namespace
     {
         Small::Str sprxPath;
         Small::Str netLibPath;
+        Small::Str openSpyPath;
         Small::Str gamesPath;
         Small::Str bootPath;
 
         if (!sprxPath.Set(kPluginsDir) || !sprxPath.Append("/") || !sprxPath.Append(kSprxName))
             return Fail("internal path error. Nothing was changed.");
 
-        if (!netLibPath.Set(kPluginsDir) || !netLibPath.Append("/") || !netLibPath.Append(kNetLibName))
+        if (!netLibPath.Set(kModulesDir) || !netLibPath.Append("/") || !netLibPath.Append(kNetLibName))
+            return Fail("internal path error. Nothing was changed.");
+
+        if (!openSpyPath.Set(kModulesDir) || !openSpyPath.Append("/") || !openSpyPath.Append(kOpenSpyName))
             return Fail("internal path error. Nothing was changed.");
 
         if (!gamesPath.Set(kPluginsDir) || !gamesPath.Append("/") || !gamesPath.Append(kGamesName))
@@ -386,7 +523,8 @@ namespace
             }
             else
             {
-                if (!Install(selfDir, sprxPath, netLibPath, gamesPath, bootPath))
+                if (!Install(selfDir, sprxPath, netLibPath, openSpyPath,
+                        gamesPath, bootPath))
                 {
                     status = 1;
                     failure = "install did not finish. See the messages above.";

@@ -1,14 +1,16 @@
 # Signing qDNSm
 
-## One output, and it covers everything
+## Three outputs, one signature
 
-The build produces a single signed artifact:
+The builds produce three signed artifacts:
 
 ```
 bin/Release-PS3/qDNSm.sprx
+bin/Release-PS3/qDNSmNetLib.sprx
+bin/Release-PS3/qDNSmOpenSpy.sprx
 ```
 
-That file loads on **CFW, PEX/D-PEX, DEX-mode CFW, and PS3HEN**. There is no
+Each file loads on **CFW, PEX/D-PEX, DEX-mode CFW, and PS3HEN**. There is no
 separate HEN build, and there is no reason for one.
 
 ## Why a single signature suffices

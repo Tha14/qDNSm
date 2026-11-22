@@ -2,6 +2,7 @@
 #include <string>
 #include <vsh/paf.hpp>
 #include "Renderer.hpp"
+#include "GameDirectory.hpp"
 
 /*
  * A self-contained on-screen input UI: free text, a 10-key numeric pad, and a Yes/No
@@ -9,8 +10,8 @@
  * cellMsgDialogOpen2 never renders, and cellOskDialogLoadAsync needs a memory container
  * that this process cannot create (CELL_ENOMEM).
  *
- * It runs as a mode over frames on the XMB thread - no blocking, no worker thread - which
- * is why it does not have the deadlock problem that killed the earlier attempts.
+ * The UI itself runs as a mode over frames on the XMB thread. Game Directory searches stream
+ * the game file one section at a time and keep only a bounded result list.
  */
 class InputUi
 {
@@ -26,7 +27,8 @@ public:
 		 * screens, which are instructions rather than questions - Mode_Confirm draws a Yes/No pair,
 		 * which is a lie when there is nothing to decide.
 		 */
-		Mode_Info
+		Mode_Info,
+		Mode_Directory
 	};
 
 	enum Result
@@ -78,6 +80,7 @@ public:
 		const std::wstring& creditLabel = L"", const std::wstring& credit = L"",
 		const std::wstring& heading = L"", bool centerBody = false);
 
+	void BeginDirectory(GameListLoadResult result);
 
 	/* Reads input for this frame. Call first, then Draw(). */
 	void Update();
@@ -105,10 +108,27 @@ private:
 	void DrawValue();
 	void DrawFooter(const wchar_t* left, const wchar_t* right);
 	void DrawSelection(float centerX, float centerY, float w, float h);
-	void DrawCharacterGrid();
+	void DrawCharacterGrid(float topFromTop);
 	void DrawNumericPad();
 	void DrawConfirm();
 	void DrawInfo();
+	void BeginDirectoryEdit();
+	void ApplyDirectoryEdit();
+	void CancelDirectoryEdit();
+	void ClearDirectory();
+	void RebuildDirectoryRows();
+	void EnsureDirectoryVisible();
+	void MoveDirectorySelection(int direction);
+	void PageDirectory(int direction);
+	void UpdateDirectory();
+	void UpdateTextGridMovement(int columns, int rows, bool allowCase);
+	void TypeTextGridCharacter(const char* layout, int columns, bool applyCase);
+	void DrawDirectory();
+	void DrawDirectorySearchField();
+	void DrawDirectoryStatus();
+	void DrawDirectoryList();
+	void DrawDirectoryDetail();
+	void DrawDirectoryError();
 
 	Mode m_Mode{};
 	Result m_Result{ Result_None };
@@ -135,6 +155,17 @@ private:
 	/* Sticky letter case for the text grid. The layout is authored in uppercase, so
 	 * lowercase simply folds letters on the way in. */
 	bool m_UpperCase{ true };
+
+	GameDirectoryRows m_DirectoryRows{};
+	std::string m_DirectoryQuery{};
+	GameListLoadResult m_DirectoryLoadResult{ GameList_Loaded };
+	size_t m_DirectorySelected{};
+	size_t m_DirectoryScroll{};
+	size_t m_DirectoryDetailRow{};
+	bool m_DirectoryGrouped{};
+	bool m_DirectorySearchFocused{ true };
+	bool m_DirectoryEditing{};
+	bool m_DirectoryDetail{};
 
 	/*
 	 * The renderer's origin is the screen centre, not the top-left, AND y grows UPWARD:

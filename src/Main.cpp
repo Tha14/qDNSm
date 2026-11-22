@@ -180,8 +180,8 @@ int module_start(unsigned int args, void* argp)
 
 	  if (g_Config.m_Settings.showNotification)
 	  {
-		  const wchar_t* message = T(TEXT_NOTIFY_LOADED);
-		  vsh::ShowNotificationWithIcon(message, vsh::NotifyIcon::Info, vsh::NotifySound::None);
+		  std::wstring message = Language_NotifyText(TEXT_NOTIFY_LOADED);
+		  vsh::ShowNotificationWithIcon(message.c_str(), vsh::NotifyIcon::Info, vsh::NotifySound::None);
 	  }
 
       sys_ppu_thread_exit(0);

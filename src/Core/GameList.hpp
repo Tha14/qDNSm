@@ -1,16 +1,33 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string>
 #include <vector>
 
 static const char kOpenSpyGameListKey[] = "OpenSpy";
 
+enum GameTag : uint32_t
+{
+	GameTag_None = 0,
+	GameTag_RequiresPatch = 1u << 0,
+	GameTag_RequiresWhitelist = 1u << 1,
+	GameTag_DiscordAccountLinking = 1u << 2
+};
+
+struct GameListGame
+{
+	std::wstring name;
+	uint32_t tags{};
+	std::wstring note;
+};
+
 struct GameListSection
 {
 	std::string key;
-	std::vector<std::wstring> games;
+	std::vector<GameListGame> games;
 	std::vector<std::wstring> aliases;
+	std::wstring note;
 };
 
 enum GameListLoadResult
@@ -30,10 +47,16 @@ enum GameListLoadResult
  */
 bool ParseGameList(const char* data, size_t size, std::vector<GameListSection>& out);
 
+/* Load one section for the supported-games panel without building the whole catalogue. */
+bool ParseGameListSection(const char* data, size_t size, const std::string& key,
+	GameListSection& out, bool& found);
+
 /* Repository-level validation: non-empty, no alias-only sections, no OpenSpy aliases. */
 bool ValidateGameList(const std::vector<GameListSection>& sections);
 
 GameListLoadResult LoadGameList(const std::string& path, std::vector<GameListSection>& out);
+GameListLoadResult LoadGameListSection(const std::string& path, const std::string& key,
+	GameListSection& out);
 
 const GameListSection* FindGameListSection(const std::vector<GameListSection>& sections,
 	const std::string& key);

@@ -4,6 +4,7 @@
 #include "../Net/UpdateUrls.hpp"
 #include "../Utils/FileSystem.hpp"
 #include "Config.hpp"
+#include "GameDirectory.hpp"
 #include "GameListPanel.hpp"
 #include "Helpers.hpp"
 #include "InputUi.hpp"
@@ -17,6 +18,7 @@
 static const char* const kDnsTempName = "qDNSm-dns-list.part";
 static const char* const kGamesTempName = "qDNSm-server-games.part";
 static const char* const kGameFileName = "qDNSm-server-games.ini";
+static const char* const kNetLibModulePath = "qDNSm_modules/qDNSmNetLib.sprx";
 
 static volatile bool s_Running = false;
 static volatile bool s_ResultReady = false;
@@ -39,7 +41,7 @@ static UpdateResult FetchUpdate(const std::string& dnsUrl, const std::string& dn
 	UpdateResult result{};
 	result.gamesRequested = !gamesUrl.empty();
 
-	const std::string modulePath = GetCurrentDir() + "qDNSmNetLib.sprx";
+	const std::string modulePath = GetCurrentDir() + kNetLibModulePath;
 
 	if (!FileExist(modulePath))
 		return result;
@@ -193,45 +195,48 @@ void PollNetUpdate()
 	if (dnsApplied || gamesApplied)
 		g_GameListPanel.Invalidate();
 
-	const wchar_t* message = nullptr;
+	if (gamesApplied)
+		GameDirectory_RefreshAvailability();
+
+	std::wstring message;
 	vsh::NotifyIcon icon = vsh::NotifyIcon::BlueVerifiedCheckmark;
 	vsh::NotifySound sound = vsh::NotifySound::OK;
 
 	if (dnsApplied && !result.gamesRequested)
 	{
-		message = T(TEXT_UPDATE_DNS_ONLY);
+		message = Language_NotifyText(TEXT_UPDATE_DNS_ONLY);
 	}
 	else if (dnsApplied && gamesApplied)
 	{
-		message = T(TEXT_UPDATE_BOTH);
+		message = Language_NotifyText(TEXT_UPDATE_BOTH);
 	}
 	else if (dnsApplied)
 	{
 		if (result.gamesInvalid)
-			message = T(TEXT_UPDATE_GAME_INVALID);
+			message = Language_NotifyText(TEXT_UPDATE_GAME_INVALID);
 		else
-			message = T(TEXT_UPDATE_GAME_NOT_UPDATED);
+			message = Language_NotifyText(TEXT_UPDATE_GAME_NOT_UPDATED);
 
 		icon = vsh::NotifyIcon::Caution;
 		sound = vsh::NotifySound::Error;
 	}
 	else if (gamesApplied)
 	{
-		message = T(TEXT_UPDATE_DNS_FAILED);
+		message = Language_NotifyText(TEXT_UPDATE_DNS_FAILED);
 		icon = vsh::NotifyIcon::Caution;
 		sound = vsh::NotifySound::Error;
 	}
 	else
 	{
-		message = T(TEXT_UPDATE_FAILED);
+		message = Language_NotifyText(TEXT_UPDATE_FAILED);
 		icon = vsh::NotifyIcon::Caution;
 		sound = vsh::NotifySound::Error;
 	}
 
 	if (icon == vsh::NotifyIcon::BlueVerifiedCheckmark)
-		ShowSuccessNotification(std::wstring(message));
+		ShowSuccessNotification(message);
 	else
-		vsh::ShowNotificationWithIcon(message, icon, sound);
+		vsh::ShowNotificationWithIcon(message.c_str(), icon, sound);
 }
 
 void StopNetUpdate()

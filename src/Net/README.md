@@ -52,11 +52,11 @@ non-empty, `url2`/`outputPath2` in one instance, so the loader is cycled once
 per update rather than once per file. It writes each body to the requested
 path and fills in the stage/error/status/bytes fields for each fetch.
 
-Both files live in the plugin directory:
+The plugin and its modules live under the plugin directory:
 
 ```text
 /dev_hdd0/plugins/qDNSm.sprx
-/dev_hdd0/plugins/qDNSmNetLib.sprx
+/dev_hdd0/plugins/qDNSm_modules/qDNSmNetLib.sprx
 ```
 
 `UpdateJob` validates the DNS list and merges it into `qDNSm.ini`, and

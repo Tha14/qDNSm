@@ -1,12 +1,12 @@
 #include "Language.hpp"
+#include "LanguageCatalog.hpp"
 #include "LanguageCodec.hpp"
 #include "LanguageCompression.hpp"
+#include "LanguageStorage.hpp"
 
 static std::wstring g_Active[TEXT_COUNT];
 static std::wstring g_Empty;
-static const LanguageCatalogEntry* g_ActiveCatalog = nullptr;
-static unsigned char* g_ActiveRaw = nullptr;
-static unsigned int g_ActiveRawSize = 0;
+static std::string g_RequestedCode = "en";
 static std::string g_ActiveCode = "en";
 
 static const LanguageCatalogEntry* CatalogForCode(const std::string& code)
@@ -20,44 +20,84 @@ static const LanguageCatalogEntry* CatalogForCode(const std::string& code)
 	return nullptr;
 }
 
-static void FreeRaw()
+static const LanguageCatalogEntry* NotificationCatalogForCode(
+	const std::string& code)
 {
-	if (g_ActiveRaw != nullptr)
+	for (int i = 0; i < kLanguageNotificationCatalogCount; i++)
 	{
-		delete[] g_ActiveRaw;
-		g_ActiveRaw = nullptr;
-		g_ActiveRawSize = 0;
+		if (code == kLanguageNotificationCatalogs[i].code)
+			return &kLanguageNotificationCatalogs[i];
 	}
+
+	return nullptr;
 }
 
-static bool EnsureRaw()
+static const LanguageCatalogEntry* EnglishCatalog()
 {
-	if (g_ActiveCatalog == nullptr)
+	return CatalogForCode("en");
+}
+
+static bool DecodeCatalogInto(const LanguageCatalogEntry& catalog,
+	std::wstring* out)
+{
+	unsigned char* raw = new unsigned char[catalog.rawSize];
+
+	if (raw == nullptr)
 		return false;
 
-	if (g_ActiveRaw != nullptr)
-		return true;
-
-	unsigned char* raw = new unsigned char[g_ActiveCatalog->rawSize];
-
-	if (!Language_DecompressCatalog(*g_ActiveCatalog, raw, g_ActiveCatalog->rawSize))
+	if (!Language_DecompressCatalog(catalog, raw, catalog.rawSize))
 	{
 		delete[] raw;
 		return false;
 	}
 
-	g_ActiveRaw = raw;
-	g_ActiveRawSize = g_ActiveCatalog->rawSize;
-	return true;
+	const unsigned char* cursor = raw;
+	const unsigned char* end = raw + catalog.rawSize;
+	bool valid = true;
+
+	for (int i = 0; i < TEXT_COUNT; i++)
+	{
+		if (cursor >= end)
+		{
+			valid = false;
+			break;
+		}
+
+		const unsigned char* terminator = cursor;
+
+		while ((terminator < end) && (*terminator != 0))
+			terminator++;
+
+		if (terminator >= end)
+		{
+			valid = false;
+			break;
+		}
+
+		out[i] = DecodeUtf8(reinterpret_cast<const char*>(cursor));
+		cursor = terminator + 1;
+	}
+
+	delete[] raw;
+	return valid;
 }
 
-static const char* RawTextForIndex(int index)
+static bool DecodeIndex(const LanguageCatalogEntry& catalog, int index,
+	std::wstring& out)
 {
-	if (g_ActiveRaw == nullptr)
-		return nullptr;
+	unsigned char* raw = new unsigned char[catalog.rawSize];
 
-	const unsigned char* cursor = g_ActiveRaw;
-	const unsigned char* end = g_ActiveRaw + g_ActiveRawSize;
+	if (raw == nullptr)
+		return false;
+
+	if (!Language_DecompressCatalog(catalog, raw, catalog.rawSize))
+	{
+		delete[] raw;
+		return false;
+	}
+
+	const unsigned char* cursor = raw;
+	const unsigned char* end = raw + catalog.rawSize;
 
 	for (int i = 0; i < index; i++)
 	{
@@ -65,27 +105,34 @@ static const char* RawTextForIndex(int index)
 			cursor++;
 
 		if (cursor >= end)
-			return nullptr;
+		{
+			delete[] raw;
+			return false;
+		}
 
 		cursor++;
 	}
 
-	return reinterpret_cast<const char*>(cursor);
-}
+	if (cursor >= end)
+	{
+		delete[] raw;
+		return false;
+	}
 
-static const char* TextForIndex(int index)
-{
-	const char* text = nullptr;
+	const unsigned char* terminator = cursor;
 
-	if (g_ActiveCatalog != nullptr)
-		text = RawTextForIndex(index);
-	else
-		text = kLanguageTable_en[index];
+	while ((terminator < end) && (*terminator != 0))
+		terminator++;
 
-	if ((text == nullptr) || (text[0] == '\0'))
-		text = kLanguageTable_en[index];
+	if (terminator >= end)
+	{
+		delete[] raw;
+		return false;
+	}
 
-	return text;
+	out = DecodeUtf8(reinterpret_cast<const char*>(cursor));
+	delete[] raw;
+	return true;
 }
 
 static void ClearActive()
@@ -97,59 +144,103 @@ static void ClearActive()
 	}
 }
 
-bool Language_Init(const std::string& code)
+static bool LoadEnglish()
 {
-	std::string selected = code;
+	const LanguageCatalogEntry* catalog = EnglishCatalog();
 
-	if ((selected == "auto") || !Language_IsValidCode(selected))
-		selected = "en";
+	g_ActiveCode = "en";
+	if (catalog == nullptr)
+		return false;
 
-	const LanguageCatalogEntry* catalog = CatalogForCode(selected);
-
-	if ((selected != "en") && (catalog == nullptr))
-		selected = "en";
-
-	if (selected == "en")
-		catalog = nullptr;
-
-	ClearActive();
-	FreeRaw();
-
-	g_ActiveCatalog = catalog;
-	g_ActiveCode = selected;
-
-	return true;
+	return DecodeCatalogInto(*catalog, g_Active);
 }
 
-void Language_LoadAll()
+bool Language_Init(const std::string& code)
 {
-	bool needsDecode = false;
+	std::string requested = code;
+
+	if ((requested == "auto") || !Language_IsValidCode(requested))
+		requested = "en";
+
+	std::string selected = requested;
+	bool available = true;
+
+	if (selected != "en")
+	{
+		available = Language_ExternalFileExists(selected);
+
+		if (!available)
+			selected = "en";
+	}
+
+	ClearActive();
+	g_RequestedCode = requested;
+	g_ActiveCode = selected;
+
+	return available;
+}
+
+bool Language_LoadAll()
+{
+	ClearActive();
+
+	const LanguageCatalogEntry* english = EnglishCatalog();
+
+	if (english == nullptr)
+		return false;
+
+	if (g_RequestedCode == "en")
+	{
+		g_ActiveCode = "en";
+		return DecodeCatalogInto(*english, g_Active);
+	}
+
+	if (!Language_ExternalFileExists(g_RequestedCode))
+	{
+		LoadEnglish();
+		return true;
+	}
+
+	std::string text;
+
+	if (!Language_ReadExternalFile(g_RequestedCode, text))
+	{
+		LoadEnglish();
+		return false;
+	}
+
+	std::wstring parsed[TEXT_COUNT];
+	bool present[TEXT_COUNT];
+
+	if (!Language_ParseCatalog(text, parsed, present))
+	{
+		LoadEnglish();
+		return false;
+	}
+
+	std::wstring fallback[TEXT_COUNT];
+
+	if (!DecodeCatalogInto(*english, fallback))
+	{
+		LoadEnglish();
+		return false;
+	}
 
 	for (int i = 0; i < TEXT_COUNT; i++)
 	{
-		if (g_Active[i].empty())
-		{
-			needsDecode = true;
-			break;
-		}
+		if (present[i] && Language_TextsCompatible(fallback[i], parsed[i]))
+			g_Active[i] = parsed[i];
+		else
+			g_Active[i] = fallback[i];
 	}
 
-	if (needsDecode && (g_ActiveCatalog != nullptr))
-		EnsureRaw();
-
-	for (int i = 0; i < TEXT_COUNT; i++)
-	{
-		if (g_Active[i].empty())
-			g_Active[i] = DecodeUtf8(TextForIndex(i));
-	}
-
-	FreeRaw();
+	g_ActiveCode = g_RequestedCode;
+	return true;
 }
 
 void Language_Unload()
 {
 	ClearActive();
-	FreeRaw();
 }
 
 const std::wstring& TS(TextId id)
@@ -161,10 +252,10 @@ const std::wstring& TS(TextId id)
 
 	if (g_Active[index].empty())
 	{
-		if (g_ActiveCatalog != nullptr)
-			EnsureRaw();
+		const LanguageCatalogEntry* catalog = EnglishCatalog();
 
-		g_Active[index] = DecodeUtf8(TextForIndex(index));
+		if (catalog != nullptr)
+			DecodeIndex(*catalog, index, g_Active[index]);
 	}
 
 	return g_Active[index];
@@ -200,6 +291,45 @@ std::wstring FormatText(TextId id, const std::wstring& first,
 	std::wstring text = TS(id);
 	ReplaceToken(text, L"{0}", first);
 	ReplaceToken(text, L"{1}", second);
+	return text;
+}
+
+static int NotificationIndex(TextId id)
+{
+	for (int i = 0; i < kLanguageNotificationCount; i++)
+	{
+		if (kLanguageNotificationIds[i] == static_cast<int>(id))
+			return i;
+	}
+
+	return -1;
+}
+
+std::wstring Language_NotifyText(TextId id)
+{
+	int index = NotificationIndex(id);
+
+	if (index < 0)
+		return std::wstring();
+
+	const LanguageCatalogEntry* catalog =
+		NotificationCatalogForCode(g_ActiveCode);
+
+	if (catalog == nullptr)
+		catalog = NotificationCatalogForCode("en");
+
+	std::wstring text;
+
+	if ((catalog == nullptr) || !DecodeIndex(*catalog, index, text))
+		return std::wstring();
+
+	return text;
+}
+
+std::wstring Language_FormatNotify(TextId id, const std::wstring& argument)
+{
+	std::wstring text = Language_NotifyText(id);
+	ReplaceToken(text, L"{0}", argument);
 	return text;
 }
 

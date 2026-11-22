@@ -33,6 +33,14 @@ bin/Release-PS3/installer/pkgwork/NPUB72381/
   USRDIR/
     EBOOT.BIN
     qDNSm.sprx
+    qDNSm-server-games.ini
+    qDNSm_modules/
+      qDNSmNetLib.sprx
+      qDNSmOpenSpy.sprx
+    qDNSm_lang/
+      de.ini
+      ...
+      zh_CN.ini
 ```
 
 Run standalone with:
@@ -110,10 +118,11 @@ python3 packaging/make-pkg.py --contentid=UP0001-NPUB72381_00-0000000000000000 \
     bin/Release-PS3/qDNSm-Installer.pkg
 ```
 
-It copies `bin/Release-PS3/qDNSm.sprx`, `bin/Release-PS3/qDNSmNetLib.sprx`,
-`data/qDNSm-server-games.ini` and `bin/Release-PS3/installer/EBOOT.BIN` into
-`<staging>/USRDIR/`, and fills in missing `ICON0.PNG` / `PARAM.SFO` from
-`packaging/assets`. Use
+It copies `bin/Release-PS3/qDNSm.sprx`, `data/qDNSm-server-games.ini`,
+`bin/Release-PS3/qDNSmNetLib.sprx` and `bin/Release-PS3/qDNSmOpenSpy.sprx`
+(under `<staging>/USRDIR/qDNSm_modules/`), the non-English `data/lang/*.ini`
+catalogs, and `bin/Release-PS3/installer/EBOOT.BIN` into `<staging>/USRDIR/`,
+and fills in missing `ICON0.PNG` / `PARAM.SFO` from `packaging/assets`. Use
 `--no-stage` when the staging tree is already assembled; the Windows batch
 drivers do that because they stage explicitly.
 

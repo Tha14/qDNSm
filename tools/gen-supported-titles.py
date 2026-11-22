@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE_PATH = ROOT / "data" / "gamespy-supported-titles.ini"
-HEADER_PATH = ROOT / "src" / "Core" / "OpenSpySupportedTitles.generated.hpp"
+HEADER_PATH = ROOT / "src" / "OpenSpy" / "OpenSpySupportedTitles.generated.hpp"
 
 TITLE_ID_RE = re.compile(r"^[A-Za-z]{4}[0-9]{5}$")
 

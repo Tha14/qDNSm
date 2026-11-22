@@ -221,8 +221,9 @@ void GameListPanel::LoadForKey(const std::string& key)
 	m_LastTick = 0;
 	m_PauseUntil = 0;
 
-	std::vector<GameListSection> sections;
-	GameListLoadResult result = LoadGameList(GetCurrentDir() + "qDNSm-server-games.ini", sections);
+	GameListSection section{};
+	GameListLoadResult result = LoadGameListSection(GetCurrentDir() + "qDNSm-server-games.ini",
+		key, section);
 
 	if (result == GameList_Missing)
 	{
@@ -245,17 +246,20 @@ void GameListPanel::LoadForKey(const std::string& key)
 		return;
 	}
 
-	const GameListSection* section = FindGameListSection(sections, key);
-
-	if (section == nullptr)
+	if (section.key.empty())
 	{
 		m_State = Panel_NoSection;
 		RebuildAliases();
 		return;
 	}
 
-	m_Games = section->games;
-	m_SectionAliases = section->aliases;
+	m_Games.clear();
+	m_Games.reserve(section.games.size());
+
+	for (size_t i = 0; i < section.games.size(); i++)
+		m_Games.push_back(section.games[i].name);
+
+	m_SectionAliases = section.aliases;
 
 	if (m_Games.empty())
 		m_State = Panel_EmptySection;

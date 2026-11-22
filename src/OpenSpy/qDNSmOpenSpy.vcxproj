@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|PS3">
+      <Configuration>Debug</Configuration>
+      <Platform>PS3</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|PS3">
+      <Configuration>Release</Configuration>
+      <Platform>PS3</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCTargetsPath Condition="'$(VCTargetsPath12)' != '' and '$(VSVersion)' == '' and '$(VisualStudioVersion)' == ''">$(VCTargetsPath12)</VCTargetsPath>
+    <ProjectGuid>{C3D5A8F2-9B7E-4A61-8D24-6F1E2B9C7A53}</ProjectGuid>
+    <ProjectName>qDNSmOpenSpy</ProjectName>
+  </PropertyGroup>
+  <PropertyGroup>
+    <RepoRootDir>$(MSBuildProjectDirectory)\..\..\</RepoRootDir>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|PS3'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>SNC</PlatformToolset>
+    <NoTocRestore>NoTocRestore1</NoTocRestore>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|PS3'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>SNC</PlatformToolset>
+    <NoTocRestore>NoTocRestore1</NoTocRestore>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|PS3'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|PS3'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|PS3'">
+    <OutDir>$(RepoRootDir)bin\$(Configuration)-$(Platform)\</OutDir>
+    <IntDir>$(RepoRootDir)bin-int\$(Configuration)-$(Platform)\$(ProjectName)\</IntDir>
+    <IgnoreImportLibrary>true</IgnoreImportLibrary>
+    <TargetExt>.prx</TargetExt>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|PS3'">
+    <OutDir>$(RepoRootDir)bin\$(Configuration)-$(Platform)\</OutDir>
+    <IntDir>$(RepoRootDir)bin-int\$(Configuration)-$(Platform)\$(ProjectName)\</IntDir>
+    <IgnoreImportLibrary>true</IgnoreImportLibrary>
+    <TargetExt>.prx</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|PS3'">
+    <ClCompile>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalIncludeDirectories>$(RepoRootDir)vendor\VirtualShell\include;$(RepoRootDir)src;$(MSBuildProjectDirectory);$(SN_PS3_PATH)\ppu\include\sn;$(SCE_PS3_ROOT)\target\ppu\include;$(SCE_PS3_ROOT)\target\common\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <CppLanguageStd>Cpp11</CppLanguageStd>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>
+        <!-- ecrti.o provides __fini and is a bare .o outside any .a. Do NOT add crt1.o: it carries a .sys_proc_prx_param section that ps3ppuld cannot place under -oformat=prx, which breaks prx-fixup. _exit and __exit_user_prx_modules come from Core/CrtStubs.c instead. -->$(SCE_PS3_ROOT)\host-win32\ppu\lib\gcc\ppu-lv2\4.1.1\ecrti.o;$(SCE_PS3_ROOT)\target\ppu\lib\libc.a;$(SN_PS3_PATH)\ppu\lib\sn\libsn.a;$(SCE_PS3_ROOT)\target\ppu\lib\libm.a;$(SCE_PS3_ROOT)\target\ppu\lib\libio_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\liblv2_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libc_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libsyscall.a;-lstdc_export_stub;-lallocator_export_stub;-lsysPrxForUser_export_stub;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>--strip-unused-data %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalLibraryDirectories>$(RepoRootDir)vendor\VirtualShell\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <OutputFormat>PRXFile</OutputFormat>
+    </Link>
+    <PostBuildEvent>
+      <Command>cd "$(RepoRootDir)vendor\scetool\bin\"
+scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 APP -6 0003004000000000 -A 0001000000000000 --self-ctrl-flags 4000000000000000000000000000000000000000000000000000000000000002 -e "$(TargetDir)$(TargetName)$(TargetExt)" "$(TargetDir)$(TargetName).sprx" 2&gt;&amp;1</Command>
+      <Message>Sign PRX (scetool)</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|PS3'">
+    <ClCompile>
+      <OptimizationLevel>Level2</OptimizationLevel>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalIncludeDirectories>$(RepoRootDir)vendor\VirtualShell\include;$(RepoRootDir)src;$(MSBuildProjectDirectory);$(SN_PS3_PATH)\ppu\include\sn;$(SCE_PS3_ROOT)\target\ppu\include;$(SCE_PS3_ROOT)\target\common\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <CppLanguageStd>Cpp11</CppLanguageStd>
+      <AdditionalOptions>-Os %(AdditionalOptions)</AdditionalOptions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>
+        <!-- Same link set as Debug. Keep crt1.o out; see the Debug comment. -->$(SCE_PS3_ROOT)\host-win32\ppu\lib\gcc\ppu-lv2\4.1.1\ecrti.o;$(SCE_PS3_ROOT)\target\ppu\lib\libc.a;$(SN_PS3_PATH)\ppu\lib\sn\libsn.a;$(SCE_PS3_ROOT)\target\ppu\lib\libm.a;$(SCE_PS3_ROOT)\target\ppu\lib\libio_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\liblv2_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libc_stub.a;$(SCE_PS3_ROOT)\target\ppu\lib\libsyscall.a;-lstdc_export_stub;-lallocator_export_stub;-lsysPrxForUser_export_stub;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>--strip-unused-data %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalLibraryDirectories>$(RepoRootDir)vendor\VirtualShell\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <MapFileName>$(IntDir)$(TargetName).map</MapFileName>
+      <InfoStripping>StripSymsAndDebug</InfoStripping>
+      <DataStripping>StripFuncsAndData</DataStripping>
+      <OutputFormat>PRXFile</OutputFormat>
+    </Link>
+    <PostBuildEvent>
+      <Command>cd "$(RepoRootDir)vendor\scetool\bin\"
+scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 APP -6 0003004000000000 -A 0001000000000000 --self-ctrl-flags 4000000000000000000000000000000000000000000000000000000000000002 -e "$(TargetDir)$(TargetName)$(TargetExt)" "$(TargetDir)$(TargetName).sprx" 2&gt;&amp;1</Command>
+      <Message>Sign PRX (scetool)</Message>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\Core\CrtStubs.c" />
+    <ClCompile Include="..\Memory\AobScan.cpp" />
+    <ClCompile Include="..\Memory\Memory.cpp" />
+    <ClCompile Include="..\Net\NetAlloc.cpp" />
+    <ClCompile Include="..\Utils\FileSystem.cpp" />
+    <ClCompile Include="..\Utils\SystemCalls.cpp" />
+    <ClCompile Include="..\Utils\Timers.cpp" />
+    <ClCompile Include="OpenSpyPatch.cpp" />
+    <ClCompile Include="OpenSpyPatchPlan.cpp" />
+    <ClCompile Include="OpenSpySupportedTitles.cpp" />
+    <ClCompile Include="qDNSmOpenSpy.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="OpenSpyPatchPlan.hpp" />
+    <ClInclude Include="OpenSpyProtocol.hpp" />
+    <ClInclude Include="OpenSpySupportedTitles.generated.hpp" />
+    <ClInclude Include="OpenSpySupportedTitles.hpp" />
+    <ClInclude Include="OpenSpyWorker.hpp" />
+    <None Include="README.md" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

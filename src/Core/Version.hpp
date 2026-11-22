@@ -16,8 +16,8 @@
  *
  * Changing the version means editing this file and nothing else.
  */
-#define QDNSM_VERSION        L"1.4"
-#define QDNSM_VERSION_ASCII  "1.4"
+#define QDNSM_VERSION        L"1.5"
+#define QDNSM_VERSION_ASCII  "1.5"
 #define QDNSM_UPDATE_URL     "br3w.com/qDNSm"
 
 inline bool ParseVersionParts(const std::string& version, uint64_t (&parts)[8],
