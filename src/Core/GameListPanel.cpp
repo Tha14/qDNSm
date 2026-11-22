@@ -168,16 +168,23 @@ static void NotifyError(const wchar_t* message)
 	vsh::ShowNotificationWithIcon(message, vsh::NotifyIcon::Caution, vsh::NotifySound::Error);
 }
 
+template <typename T>
+static void ReleaseContainer(T& value)
+{
+	T empty;
+	value.swap(empty);
+}
+
 void GameListPanel::ResetData()
 {
 	m_Index = -1;
 	m_State = Panel_NoServer;
 	m_OpenSpy = false;
-	m_Key.clear();
-	m_Name.clear();
-	m_Games.clear();
-	m_SectionAliases.clear();
-	m_Aliases.clear();
+	ReleaseContainer(m_Key);
+	ReleaseContainer(m_Name);
+	ReleaseContainer(m_Games);
+	ReleaseContainer(m_SectionAliases);
+	ReleaseContainer(m_Aliases);
 	m_ScrollIndex = 0;
 	m_VisibleRows = static_cast<size_t>(VISIBLE_ROWS);
 	m_ScrollDirection = 1;
@@ -257,9 +264,12 @@ void GameListPanel::LoadForKey(const std::string& key)
 	m_Games.reserve(section.games.size());
 
 	for (size_t i = 0; i < section.games.size(); i++)
-		m_Games.push_back(section.games[i].name);
+	{
+		m_Games.push_back(std::wstring());
+		m_Games.back().swap(section.games[i].name);
+	}
 
-	m_SectionAliases = section.aliases;
+	m_SectionAliases.swap(section.aliases);
 
 	if (m_Games.empty())
 		m_State = Panel_EmptySection;

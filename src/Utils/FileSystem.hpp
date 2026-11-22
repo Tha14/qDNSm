@@ -7,7 +7,7 @@ sys_prx_id_t GetModuleHandle(const char* moduleName);
 sys_prx_module_info_t GetModuleInfo(sys_prx_id_t handle);
 std::string GetModuleFilePath(const char* moduleName);
 std::string RemoveBaseNameFromPath(const std::string& filePath);
-std::string GetCurrentDir();
+const std::string& GetCurrentDir();
 
 bool FileExist(const std::string& filePath);
 

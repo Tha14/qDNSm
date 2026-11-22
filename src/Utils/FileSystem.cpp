@@ -39,7 +39,7 @@ std::string RemoveBaseNameFromPath(const std::string& filePath)
    return filePath.substr(0, lastpath);
 }
 
-std::string GetCurrentDir()
+const std::string& GetCurrentDir()
 {
    static std::string cachedModulePath;
    if (cachedModulePath.empty())

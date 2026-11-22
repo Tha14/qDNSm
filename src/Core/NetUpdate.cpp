@@ -126,6 +126,16 @@ static void NetUpdateThread(uint64_t)
 	sys_ppu_thread_exit(0);
 }
 
+static void JoinNetUpdateThread()
+{
+	if (s_ThreadId == SYS_PPU_THREAD_ID_INVALID)
+		return;
+
+	uint64_t exitCode = 0;
+	if (sys_ppu_thread_join(s_ThreadId, &exitCode) == 0)
+		s_ThreadId = SYS_PPU_THREAD_ID_INVALID;
+}
+
 bool StartNetUpdate()
 {
 	if (s_Running || s_ResultReady)
@@ -134,12 +144,7 @@ bool StartNetUpdate()
 	if (g_InputUi.IsActive())
 		return false;
 
-	if (s_ThreadId != SYS_PPU_THREAD_ID_INVALID)
-	{
-		uint64_t exitCode = 0;
-		sys_ppu_thread_join(s_ThreadId, &exitCode);
-		s_ThreadId = SYS_PPU_THREAD_ID_INVALID;
-	}
+	JoinNetUpdateThread();
 
 	s_GamesRequested = g_Config.m_Settings.showSupportedGames;
 	s_Running = true;
@@ -237,16 +242,13 @@ void PollNetUpdate()
 		ShowSuccessNotification(message);
 	else
 		vsh::ShowNotificationWithIcon(message.c_str(), icon, sound);
+
+	JoinNetUpdateThread();
 }
 
 void StopNetUpdate()
 {
-	if (s_ThreadId != SYS_PPU_THREAD_ID_INVALID)
-	{
-		uint64_t exitCode = 0;
-		sys_ppu_thread_join(s_ThreadId, &exitCode);
-		s_ThreadId = SYS_PPU_THREAD_ID_INVALID;
-	}
+	JoinNetUpdateThread();
 
 	s_Running = false;
 	s_ResultReady = false;

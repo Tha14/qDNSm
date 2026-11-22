@@ -474,10 +474,10 @@ GameListLoadResult GameDirectory_SearchText(const std::string& text,
 		{
 			if (sectionStart != std::string::npos)
 			{
-				std::string chunk = text.substr(sectionStart, cursor - sectionStart);
 				std::vector<GameListSection> parsed;
 
-				if (ParseGameList(chunk.data(), chunk.size(), parsed) && !parsed.empty())
+				if (ParseGameList(text.data() + sectionStart, cursor - sectionStart, parsed) &&
+					!parsed.empty())
 				{
 					parsedAny = true;
 					stop = !SearchSection(parsed[0], servers, tokens, grouped, rows, truncated);
@@ -495,10 +495,10 @@ GameListLoadResult GameDirectory_SearchText(const std::string& text,
 
 	if (!stop && (sectionStart != std::string::npos))
 	{
-		std::string chunk = text.substr(sectionStart);
 		std::vector<GameListSection> parsed;
 
-		if (ParseGameList(chunk.data(), chunk.size(), parsed) && !parsed.empty())
+		if (ParseGameList(text.data() + sectionStart, text.size() - sectionStart, parsed) &&
+			!parsed.empty())
 		{
 			parsedAny = true;
 			SearchSection(parsed[0], servers, tokens, grouped, rows, truncated);

@@ -245,6 +245,7 @@ static volatile bool s_ReconnectRunning = false;
 static volatile int s_DnsApplyPhase = DnsApply_Idle;
 static bool s_NetctlInitialized = false;
 static char s_ReconnectName[64] = {};
+static sys_ppu_thread_t s_ReconnectThreadId = SYS_PPU_THREAD_ID_INVALID;
 
 bool IsDnsApplyBusy()
 {
@@ -349,12 +350,24 @@ static void NetworkThread(uint64_t)
 	sys_ppu_thread_exit(0);
 }
 
+static void JoinReconnectThread()
+{
+	if (s_ReconnectThreadId == SYS_PPU_THREAD_ID_INVALID)
+		return;
+
+	uint64_t exitCode = 0;
+	if (sys_ppu_thread_join(s_ReconnectThreadId, &exitCode) == 0)
+		s_ReconnectThreadId = SYS_PPU_THREAD_ID_INVALID;
+}
+
 static void ReconnectStep()
 {
 	if (!s_ReconnectRequested)
 		return;
 
 	s_ReconnectRequested = false;
+
+	JoinReconnectThread();
 
 	sys_ppu_thread_t threadId = SYS_PPU_THREAD_ID_INVALID;
 
@@ -372,7 +385,10 @@ static void ReconnectStep()
 		s_ReconnectRunning = false;
 		s_DnsApplyPhase = DnsApply_Idle;
 		ShowReconnectFailure(false);
+		return;
 	}
+
+	s_ReconnectThreadId = threadId;
 }
 
 bool RequestReconnect(const std::string& serverName)
@@ -399,6 +415,9 @@ static void ManualDnsWorker(uint64_t)
 	while (true)
 	{
 		ReconnectStep();
+
+		if (!s_ReconnectRunning)
+			JoinReconnectThread();
 
 		ticks++;
 		if ((ticks % 4) == 0)
