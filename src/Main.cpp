@@ -60,11 +60,11 @@ SYS_MODULE_STOP(module_stop);
 * 
 */ 
 
-sys_ppu_thread_t gVshMenuPpuThreadId = SYS_PPU_THREAD_ID_INVALID;
-
 static const uint64_t kHenSettleMs = 3000;
 static const uint64_t kXmbStableMs = 3000;
 static const uint64_t kHenWaitMaxMs = 30000;
+static const uint64_t kNonJoinableThread = 0;
+static volatile int g_StartupComplete = 0;
 
 static bool HenPluginIsRunning()
 {
@@ -144,7 +144,10 @@ static void WaitForStableXmb()
 CDECL_BEGIN
 int module_start(unsigned int args, void* argp)
 {
-   sys_ppu_thread_create(&gVshMenuPpuThreadId, [](uint64_t arg) -> void
+   g_StartupComplete = 0;
+
+   sys_ppu_thread_t startupThreadId;
+   int ret = sys_ppu_thread_create(&startupThreadId, [](uint64_t arg) -> void
    {
       WaitForStableXmb();
 
@@ -184,9 +187,13 @@ int module_start(unsigned int args, void* argp)
 		  vsh::ShowNotificationWithIcon(message.c_str(), vsh::NotifyIcon::Info, vsh::NotifySound::None);
 	  }
 
+      g_StartupComplete = 1;
       sys_ppu_thread_exit(0);
 
-   }, 0, 1059, 0x10000, SYS_PPU_THREAD_CREATE_JOINABLE, "qDNSmStart");
+   }, 0, 1059, 0x10000, kNonJoinableThread, "qDNSmStart");
+
+   if (ret != SUCCEEDED)
+      g_StartupComplete = 1;
 
    // Exit thread using directly the syscall and not the user mode library or else we will crash
    _sys_ppu_thread_exit(0);
@@ -199,6 +206,9 @@ int module_stop(unsigned int args, void* argp)
    sys_ppu_thread_t stopPpuThreadId;
     int ret = sys_ppu_thread_create(&stopPpuThreadId, [](uint64_t arg) -> void
     {
+       while (g_StartupComplete == 0)
+          sys_ppu_thread_yield();
+
        StopNetUpdate();
        StopOpenSpyPatch();
 
@@ -209,12 +219,6 @@ int module_stop(unsigned int args, void* argp)
       // Prevent unload too fast (give time to other threads to finish)
       sys_ppu_thread_yield();
       Sleep(1000);
-
-      if (gVshMenuPpuThreadId != SYS_PPU_THREAD_ID_INVALID)
-      {
-         uint64_t exitCode;
-         sys_ppu_thread_join(gVshMenuPpuThreadId, &exitCode);
-      }
 
       sys_ppu_thread_exit(0);
    },

@@ -50,12 +50,14 @@ static const float DIRECTORY_TAG_TEXT_HEIGHT = 11.0f;
 static float s_PatchTagWidth = 0.0f;
 static float s_WhitelistTagWidth = 0.0f;
 static float s_DiscordTagWidth = 0.0f;
+static float s_CrossPlayTagWidth = 0.0f;
 static const size_t DIRECTORY_NOTE_WIDTH = 88;
 static const size_t DIRECTORY_NOTE_MAX_LINES = 5;
 static const float DIALOG_BORDER_WIDTH = 2.0f;
 static const wchar_t kDirectoryTagPatch[] = L"Requires patch";
 static const wchar_t kDirectoryTagWhitelist[] = L"Requires whitelisting";
 static const wchar_t kDirectoryTagDiscord[] = L"Discord Account Linking";
+static const wchar_t kDirectoryTagCrossPlay[] = L"Cross-Play";
 
 /*
  * Vertical offsets for the text/numeric dialog. The renderer frame is y-up and centred on the
@@ -340,7 +342,7 @@ static void DrawDirectoryTag(const std::wstring& label, float width, float x, fl
 }
 
 static float DirectoryTagsWidth(uint32_t tags, float patchWidth, float whitelistWidth,
-	float discordWidth)
+	float discordWidth, float crossPlayWidth)
 {
 	float width = 0.0f;
 
@@ -353,6 +355,14 @@ static float DirectoryTagsWidth(uint32_t tags, float patchWidth, float whitelist
 			width += DIRECTORY_TAG_GAP;
 
 		width += whitelistWidth;
+	}
+
+	if ((tags & GameTag_CrossPlay) != 0)
+	{
+		if (width > 0.0f)
+			width += DIRECTORY_TAG_GAP;
+
+		width += crossPlayWidth;
 	}
 
 	if ((tags & GameTag_DiscordAccountLinking) != 0)
@@ -369,11 +379,13 @@ static float DirectoryTagsWidth(uint32_t tags, float patchWidth, float whitelist
 static void DrawDirectoryTags(uint32_t tags, float x, float centerY,
 	const std::wstring& patchLabel, float patchWidth,
 	const std::wstring& whitelistLabel, float whitelistWidth,
-	const std::wstring& discordLabel, float discordWidth)
+	const std::wstring& discordLabel, float discordWidth,
+	const std::wstring& crossPlayLabel, float crossPlayWidth)
 {
 	const paf::vec4 patchColor = MutedBlue(0.95f);
 	const paf::vec4 whitelistColor(0.82f, 0.45f, 0.08f, 0.95f);
 	const paf::vec4 discordColor(0.42f, 0.28f, 0.68f, 0.95f);
+	const paf::vec4 crossPlayColor(0.20f, 0.58f, 0.36f, 0.95f);
 
 	if ((tags & GameTag_RequiresPatch) != 0)
 	{
@@ -385,6 +397,12 @@ static void DrawDirectoryTags(uint32_t tags, float x, float centerY,
 	{
 		DrawDirectoryTag(whitelistLabel, whitelistWidth, x, centerY, whitelistColor);
 		x += whitelistWidth + DIRECTORY_TAG_GAP;
+	}
+
+	if ((tags & GameTag_CrossPlay) != 0)
+	{
+		DrawDirectoryTag(crossPlayLabel, crossPlayWidth, x, centerY, crossPlayColor);
+		x += crossPlayWidth + DIRECTORY_TAG_GAP;
 	}
 
 	if ((tags & GameTag_DiscordAccountLinking) != 0)
@@ -1265,18 +1283,22 @@ void InputUi::DrawDirectoryList()
 	std::wstring patchLabel;
 	std::wstring whitelistLabel;
 	std::wstring discordLabel;
+	std::wstring crossPlayLabel;
 	float patchWidth = 0.0f;
 	float whitelistWidth = 0.0f;
 	float discordWidth = 0.0f;
+	float crossPlayWidth = 0.0f;
 
 	if (hasTags)
 	{
 		patchLabel = kDirectoryTagPatch;
 		whitelistLabel = kDirectoryTagWhitelist;
 		discordLabel = kDirectoryTagDiscord;
+		crossPlayLabel = kDirectoryTagCrossPlay;
 		patchWidth = DirectoryTagWidth(patchLabel, s_PatchTagWidth);
 		whitelistWidth = DirectoryTagWidth(whitelistLabel, s_WhitelistTagWidth);
 		discordWidth = DirectoryTagWidth(discordLabel, s_DiscordTagWidth);
+		crossPlayWidth = DirectoryTagWidth(crossPlayLabel, s_CrossPlayTagWidth);
 	}
 
 	const float tagRight = m_BoxLeft + m_BoxWidth - 44.0f;
@@ -1305,11 +1327,11 @@ void InputUi::DrawDirectoryList()
 		if (row.tags != GameTag_None)
 		{
 			const float tagX = tagRight - DirectoryTagsWidth(row.tags, patchWidth,
-				whitelistWidth, discordWidth);
+				whitelistWidth, discordWidth, crossPlayWidth);
 
 			DrawDirectoryTags(row.tags, tagX, rowCenter + 8.0f,
 				patchLabel, patchWidth, whitelistLabel, whitelistWidth,
-				discordLabel, discordWidth);
+				discordLabel, discordWidth, crossPlayLabel, crossPlayWidth);
 		}
 
 		std::wstring detail = FormatDirectoryDetail(row);
@@ -1340,13 +1362,15 @@ void InputUi::DrawDirectoryDetail()
 		const std::wstring patchLabel = kDirectoryTagPatch;
 		const std::wstring whitelistLabel = kDirectoryTagWhitelist;
 		const std::wstring discordLabel = kDirectoryTagDiscord;
+		const std::wstring crossPlayLabel = kDirectoryTagCrossPlay;
 		const float patchWidth = DirectoryTagWidth(patchLabel, s_PatchTagWidth);
 		const float whitelistWidth = DirectoryTagWidth(whitelistLabel, s_WhitelistTagWidth);
 		const float discordWidth = DirectoryTagWidth(discordLabel, s_DiscordTagWidth);
+		const float crossPlayWidth = DirectoryTagWidth(crossPlayLabel, s_CrossPlayTagWidth);
 
 		DrawDirectoryTags(row.tags, m_BoxLeft + 30.0f, m_BoxMaxY - 60.0f,
 			patchLabel, patchWidth, whitelistLabel, whitelistWidth,
-			discordLabel, discordWidth);
+			discordLabel, discordWidth, crossPlayLabel, crossPlayWidth);
 
 		y = m_BoxMaxY - 92.0f;
 	}

@@ -114,12 +114,12 @@ static void TestGameList()
 	const char* metadata =
 		"[1.1.1.1]\n"
 		"Game=Metadata\n"
-		"# tags: requires-patch, requires-whitelist, discord-account-linking, future-tag\n"
+		"# tags: requires-patch, requires-whitelist, discord-account-linking, cross-play, future-tag\n"
 		"# note: first line\n"
 		"# NOTE: second line\n";
 	Check(ParseGameList(metadata, std::char_traits<char>::length(metadata), sections), "metadata comments parse");
 	Check(sections[0].games[0].tags == (GameTag_RequiresPatch | GameTag_RequiresWhitelist |
-		GameTag_DiscordAccountLinking),
+		GameTag_DiscordAccountLinking | GameTag_CrossPlay),
 		"known tags combine and unknown tags are ignored");
 	Check(sections[0].games[0].note == W("first line\nsecond line"), "note lines combine");
 
@@ -941,7 +941,7 @@ static void TestGameDirectorySearch()
 		"[2.2.2.2]\n"
 		"# note: blue server note\n"
 		"Game=Beta\n"
-		"# tags: requires-whitelist, discord-account-linking\n"
+		"# tags: requires-whitelist, discord-account-linking, cross-play\n"
 		"Game=Gamma\n"
 		"[3.3.3.3]\n"
 		"[OpenSpy]\n"
@@ -997,7 +997,7 @@ static void TestGameDirectorySearch()
 	Check(rows[0].projects.size() == 3, "grouped streaming search merges projects");
 	Check(rows[0].ips.size() == 2, "grouped streaming search merges IPs");
 	Check(rows[0].tags == (GameTag_RequiresPatch | GameTag_RequiresWhitelist |
-		GameTag_DiscordAccountLinking),
+		GameTag_DiscordAccountLinking | GameTag_CrossPlay),
 		"grouped streaming search unions tags");
 	Check(rows[0].notes.size() == 2, "grouped streaming search merges notes");
 

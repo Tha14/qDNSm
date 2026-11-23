@@ -14,7 +14,8 @@ MAX_ALIASES = 16
 MAX_GAME_LENGTH = 96
 MAX_ALIAS_LENGTH = 64
 MAX_NOTE_LENGTH = 512
-KNOWN_TAGS = {"requires-patch", "requires-whitelist", "discord-account-linking"}
+KNOWN_TAGS = {"requires-patch", "requires-whitelist", "discord-account-linking",
+              "cross-play"}
 MAX_DNS_ENTRIES = 256
 MAX_ONLINE_VERSION = 32
 MAX_ONLINE_URL = 256

@@ -12,7 +12,8 @@ enum GameTag : uint32_t
 	GameTag_None = 0,
 	GameTag_RequiresPatch = 1u << 0,
 	GameTag_RequiresWhitelist = 1u << 1,
-	GameTag_DiscordAccountLinking = 1u << 2
+	GameTag_DiscordAccountLinking = 1u << 2,
+	GameTag_CrossPlay = 1u << 3
 };
 
 struct GameListGame

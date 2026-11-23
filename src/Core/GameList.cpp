@@ -180,6 +180,8 @@ static uint32_t ParseGameTags(const char* text, size_t length)
 			tags |= GameTag_RequiresWhitelist;
 		else if (RangeEqualsNoCase(token, tokenLength, "discord-account-linking"))
 			tags |= GameTag_DiscordAccountLinking;
+		else if (RangeEqualsNoCase(token, tokenLength, "cross-play"))
+			tags |= GameTag_CrossPlay;
 	}
 
 	return tags;
