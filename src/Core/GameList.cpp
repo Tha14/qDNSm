@@ -203,6 +203,23 @@ static void AppendGameNote(std::wstring& target, const char* text, size_t length
 	target += Widen(text, length);
 }
 
+static bool IsGameMetadataComment(const char* line, size_t length)
+{
+	if (length == 0)
+		return false;
+
+	size_t cursor = 1;
+
+	while ((cursor < length) && ((line[cursor] == ' ') || (line[cursor] == '\t')))
+		cursor++;
+
+	const char* text = line + cursor;
+	const size_t textLength = length - cursor;
+
+	return StartsWithNoCase(text, textLength, "tags:") ||
+		StartsWithNoCase(text, textLength, "note:");
+}
+
 static void ParseGameMetadata(const char* line, size_t length, GameListSection& section,
 	size_t lastGame)
 {
@@ -302,8 +319,11 @@ bool ParseGameList(const char* data, size_t size, std::vector<GameListSection>& 
 
 		if ((line[0] == '#') || (line[0] == ';'))
 		{
-			if (current != static_cast<size_t>(-1))
+			if ((current != static_cast<size_t>(-1)) &&
+				IsGameMetadataComment(line, lineLength))
+			{
 				ParseGameMetadata(line, lineLength, out[current], lastGame);
+			}
 
 			continue;
 		}

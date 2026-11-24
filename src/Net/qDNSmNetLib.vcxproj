@@ -110,6 +110,7 @@ scetool.exe -0 SELF -1 TRUE -s FALSE -2 0A -3 1070000052000001 -4 01000002 -5 AP
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DnsList.hpp" />
+    <ClInclude Include="DnsPacket.hpp" />
     <ClInclude Include="mbedtls_config.h" />
     <ClInclude Include="NetProbeProtocol.hpp" />
     <ClInclude Include="TlsFetch.hpp" />

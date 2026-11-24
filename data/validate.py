@@ -91,6 +91,9 @@ def validate_game_comment(path: Path, line_number: int, line: str, current: dict
     body = trim(line[1:])
     lower = body.lower()
 
+    if not lower.startswith("tags:") and not lower.startswith("note:"):
+        return
+
     if lower.startswith("tags:"):
         if current_game is None:
             raise ValidationError(f"{path}:{line_number}: tags comment must follow a Game= line")

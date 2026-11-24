@@ -1,11 +1,11 @@
 #include "TlsFetch.hpp"
+#include "DnsPacket.hpp"
 
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
 #include <cell/cell_fs.h>
-#include <netdb.h>
 #include <netinet/in.h>
 #include <sys/random_number.h>
 #include <sys/select.h>
@@ -19,7 +19,15 @@
 #include <mbedtls/ssl.h>
 
 static const int kConnectTimeoutSeconds = 5;
+static const int kDnsTimeoutSeconds = 3;
 static const int kIoTimeoutSeconds = 10;
+
+static const unsigned char kDnsServers[][4] = {
+	{8, 8, 8, 8},
+	{1, 1, 1, 1},
+};
+
+static uint16_t s_DnsQueryCounter = 0;
 
 static uint64_t s_MbedTlsArena[256 * 1024 / sizeof(uint64_t)];
 static unsigned char s_ReceiveBuffer[64 * 1024];
@@ -171,6 +179,94 @@ static int ConnectWithTimeout(int socketFd, const struct sockaddr_in& address,
 	setsockopt(socketFd, SOL_SOCKET, SO_SNDTIMEO, &ioTimeout, sizeof(ioTimeout));
 
 	return 0;
+}
+
+static uint16_t NextDnsQueryId()
+{
+	uint16_t id = 0;
+
+	if (sys_get_random_number(&id, sizeof(id)) != 0)
+		id = ++s_DnsQueryCounter;
+
+	return id;
+}
+
+static bool ResolveWithDnsServer(const char* host, const unsigned char server[4],
+	unsigned char address[4])
+{
+	unsigned char query[512];
+	unsigned char response[1024];
+
+	const uint16_t id = NextDnsQueryId();
+	const size_t queryLength = DnsPacket::BuildQuery(host, id, query, sizeof(query));
+
+	if (queryLength == 0)
+		return false;
+
+	const int socketFd = (int)socket(AF_INET, SOCK_DGRAM, 0);
+
+	if (socketFd < 0)
+		return false;
+
+	struct timeval timeout;
+	timeout.tv_sec = kDnsTimeoutSeconds;
+	timeout.tv_usec = 0;
+
+	setsockopt(socketFd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+	setsockopt(socketFd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
+	struct sockaddr_in dnsAddress;
+	memset(&dnsAddress, 0, sizeof(dnsAddress));
+	dnsAddress.sin_family = AF_INET;
+	dnsAddress.sin_port = htons(53);
+	memcpy(&dnsAddress.sin_addr, server, 4);
+
+	if (connect(socketFd, (const struct sockaddr*)&dnsAddress, sizeof(dnsAddress)) != 0)
+	{
+		socketclose(socketFd);
+		return false;
+	}
+
+	const int sent = (int)send(socketFd, query, queryLength, 0);
+
+	if ((sent < 0) || ((size_t)sent != queryLength))
+	{
+		socketclose(socketFd);
+		return false;
+	}
+
+	fd_set readSet;
+	FD_ZERO(&readSet);
+	FD_SET(socketFd, &readSet);
+
+	const int selected = socketselect(
+		socketFd + 1, &readSet, nullptr, nullptr, &timeout);
+
+	if (selected <= 0)
+	{
+		socketclose(socketFd);
+		return false;
+	}
+
+	const int received = (int)recv(socketFd, response, sizeof(response), 0);
+
+	socketclose(socketFd);
+
+	if (received <= 0)
+		return false;
+
+	return DnsPacket::ParseResponse(response, (size_t)received, id, address);
+}
+
+static bool ResolveHost(const char* host, unsigned char address[4])
+{
+	for (size_t i = 0; i < (sizeof(kDnsServers) / sizeof(kDnsServers[0])); i++)
+	{
+		if (ResolveWithDnsServer(host, kDnsServers[i], address))
+			return true;
+	}
+
+	return false;
 }
 
 static int NetSend(void* context, const unsigned char* buffer, size_t length)
@@ -483,13 +579,9 @@ void RunTlsProbe(NetProbeRequest& request)
 
 	request.stage = kNetProbeStageDns;
 
-	struct hostent* hostEntry = gethostbyname(host);
+	unsigned char resolvedAddress[4];
 
-	if ((hostEntry == nullptr) ||
-		(hostEntry->h_addrtype != AF_INET) ||
-		(hostEntry->h_length != 4) ||
-		(hostEntry->h_addr_list == nullptr) ||
-		(hostEntry->h_addr_list[0] == nullptr))
+	if (!ResolveHost(host, resolvedAddress))
 	{
 		Fail(request, kNetProbeStageDns, kNetProbeErrorDns);
 		return;
@@ -509,7 +601,7 @@ void RunTlsProbe(NetProbeRequest& request)
 	memset(&address, 0, sizeof(address));
 	address.sin_family = AF_INET;
 	address.sin_port = htons(443);
-	memcpy(&address.sin_addr, hostEntry->h_addr_list[0], 4);
+	memcpy(&address.sin_addr, resolvedAddress, 4);
 
 	request.stage = kNetProbeStageConnect;
 

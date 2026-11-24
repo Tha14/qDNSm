@@ -13,6 +13,7 @@ library for its string and vector handling.
 | `TlsFetch.cpp` / `.hpp` | TLS 1.2 handshake, HTTPS GET, body decode, temp-file write. |
 | `UpdateJob.cpp` / `.hpp` | DNS/config merge, catalogue validation, and final file writes. |
 | `DnsList.cpp` / `.hpp` | Managed DNS list parser and merge. |
+| `DnsPacket.hpp` | DNS query builder and A-record response parser. |
 | `NetGameList.cpp` | Host-mode game catalogue parser/validator for the module. |
 | `qDNSmNetLib.vcxproj` | SNC project. Builds and signs to `bin/<Config>-PS3/qDNSmNetLib.sprx`. |
 | `NetProbeProtocol.hpp` | Request/response struct shared with the main plugin. |
@@ -68,5 +69,7 @@ version, and link in place. No diagnostic files are written.
 The module links mbedTLS from source (no prebuilt library), uses a 256 KiB
 static memory-buffer arena, and gets entropy from `sys_get_random_number`.
 The handshake currently uses `MBEDTLS_SSL_VERIFY_NONE`, so the certificate is
-parsed but not verified. `SO_NBIO` plus `socketselect` bounds the TCP connect
-to 5 s; blocking send/receive time out after 10 s.
+parsed but not verified. Update hosts are resolved directly against `8.8.8.8`
+and then `1.1.1.1` over UDP with a 3 s bound; the console DNS setting is not
+used for the update. `SO_NBIO` plus `socketselect` bounds the TCP connect to
+5 s; blocking send/receive time out after 10 s.

@@ -1,6 +1,7 @@
 #include "../GameList.hpp"
 #include "../GameDirectory.hpp"
 #include "../../Net/DnsList.hpp"
+#include "../../Net/DnsPacket.hpp"
 #include "../Language.hpp"
 #include "../LanguageCatalog.hpp"
 #include "../LanguageCodec.hpp"
@@ -84,6 +85,42 @@ static std::wstring W(const char* text)
 	return out;
 }
 
+static void TestDnsPacket()
+{
+	unsigned char query[512] = {};
+	const size_t queryLength = DnsPacket::BuildQuery(
+		"raw.githubusercontent.com", 0x1234, query, sizeof(query));
+
+	Check(queryLength == 43, "DNS query length");
+	Check((query[0] == 0x12) && (query[1] == 0x34), "DNS query id");
+	Check((query[2] == 0x01) && (query[3] == 0x00), "DNS query recursion flag");
+	Check((query[4] == 0x00) && (query[5] == 0x01), "DNS query question count");
+	Check((query[12] == 0x03) && (query[13] == 'r'), "DNS query first label");
+	Check(query[16] == 0x11, "DNS query second label length");
+	Check((query[39] == 0x00) && (query[40] == 0x01) &&
+		(query[41] == 0x00) && (query[42] == 0x01), "DNS query type and class");
+
+	unsigned char response[] = {
+		0x12, 0x34, 0x81, 0x80, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+		0x03, 0x72, 0x61, 0x77, 0x11, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x75,
+		0x73, 0x65, 0x72, 0x63, 0x6F, 0x6E, 0x74, 0x65, 0x6E, 0x74, 0x03, 0x63,
+		0x6F, 0x6D, 0x00, 0x00, 0x01, 0x00, 0x01, 0xC0, 0x0C, 0x00, 0x01, 0x00,
+		0x01, 0x00, 0x00, 0x00, 0x3C, 0x00, 0x04, 0xB9, 0xC7, 0x6C, 0x85,
+	};
+
+	unsigned char address[4] = {};
+	Check(DnsPacket::ParseResponse(response, sizeof(response), 0x1234, address),
+		"DNS A response parses");
+	Check((address[0] == 185) && (address[1] == 199) &&
+		(address[2] == 108) && (address[3] == 133), "DNS A address parsed");
+	Check(!DnsPacket::ParseResponse(response, sizeof(response), 0x4321, address),
+		"DNS response rejects a mismatched id");
+
+	response[3] = 0x03;
+	Check(!DnsPacket::ParseResponse(response, sizeof(response), 0x1234, address),
+		"DNS response rejects an error status");
+}
+
 static void TestGameList()
 {
 	std::vector<GameListSection> sections;
@@ -95,6 +132,8 @@ static void TestGameList()
 		"Game=Gran Turismo 5\n"
 		"# tags: requires-patch, future-tag\n"
 		"# note: game note\n"
+		"# Game=Commented Out Game\n"
+		"; Game=Another Commented Out Game\n"
 		"Game=Gran Turismo 5\n"
 		"Game=SOCOM: Confrontation\n"
 		"\n"
@@ -115,6 +154,7 @@ static void TestGameList()
 		"[1.1.1.1]\n"
 		"Game=Metadata\n"
 		"# tags: requires-patch, requires-whitelist, discord-account-linking, cross-play, future-tag\n"
+		"# Game=Commented Out Game\n"
 		"# note: first line\n"
 		"# NOTE: second line\n";
 	Check(ParseGameList(metadata, std::char_traits<char>::length(metadata), sections), "metadata comments parse");
@@ -1032,6 +1072,7 @@ static void TestGameDirectorySearch()
 
 int main()
 {
+	TestDnsPacket();
 	TestGameList();
 	TestGameListSection();
 	TestGameListSectionNames();
